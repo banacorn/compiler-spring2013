@@ -185,6 +185,10 @@ genLocalVariableDeclaration (char * name, ST_TYPE type) {
     tab -> number = localVariableOrder;
     localVariableOrder++;
 }
+void
+genReturn (var_ref * ref) {
+    fprintf(fp, "    move $%d, $v0\n", ref -> r);
+};
 
 void
 genWrite (var_ref * ref) {
@@ -202,6 +206,30 @@ genWrite (var_ref * ref) {
             break;
     }
     fprintf(fp, "    syscall\n");
+}
+
+int
+genInvocation (char * name) {
+    if ((strcmp(name, "fread") == 0)|| 
+        (strcmp(name, "read") == 0) ||
+        (strcmp(name, "READ") == 0) ||
+        (strcmp(name, "FREAD") == 0)) {
+        switch (LHTYPE) {
+            case INT_:
+                fprintf(fp, "    li $v0, 5\n");
+                break;
+            case FLOAT_:
+                fprintf(fp, "    li $v0, 6\n");
+                break;
+        }
+        int result = getRegister();
+        fprintf(fp, "    syscall\n");
+        fprintf(fp, "    move $%d, $v0\n", result);
+        return result;
+    } else {
+
+        return 0;
+    }
 }
 
 void
@@ -760,8 +788,7 @@ ST_TYPE deal_stmt(AST_NODE * ptr){
             temp=deal_relop_expr(ptr->child);
             if ((func_return==ERROR_)||(temp->type==ERROR_)){
                 result=ERROR_;
-            }
-            else if (func_return!= temp->type){
+            } else if (func_return!= temp->type){
                 switch (func_return){
                     case INT_:
                     case FLOAT_:
@@ -777,6 +804,7 @@ ST_TYPE deal_stmt(AST_NODE * ptr){
                 }
             }
             else{
+                genReturn(temp);
                 result=ZERO_;
             }
             IS_RETURN=1;
@@ -1449,27 +1477,9 @@ var_ref* deal_factor(AST_NODE* ptr){
             break;
         case F_ID:
         //ID MK_LPAREN relop_expr_list MK_RPAREN
+            printf("fuck %s\n", ptr -> child -> semantic_value.lexeme);
             op= check_function(ptr->child,ptr->child->sibling);
-            if ((strcmp(ptr->child->semantic_value.lexeme, "fread") == 0)|| 
-                  (strcmp(ptr->child->semantic_value.lexeme, "read") == 0) ||
-                (strcmp(ptr->child->semantic_value.lexeme, "READ") == 0) ||
-                  (strcmp(ptr->child->semantic_value.lexeme, "FREAD") == 0)){
-                // READ = 1;
-                printf("fuck %d\n", LHTYPE);
-                switch (LHTYPE) {
-                    case INT_:
-                        fprintf(fp, "    li $v0, 5\n");
-                        break;
-                    case FLOAT_:
-                        fprintf(fp, "    li $v0, 6\n");
-                        break;
-                }
-                int result = getRegister();
-                fprintf(fp, "    syscall\n");
-                fprintf(fp, "    move $%d, $v0\n", result);
-                op -> r = result;
-
-            }
+            op -> r = genInvocation(ptr -> child -> semantic_value.lexeme);
             break;
         case F_ID_MINUS:
         //OP_MINUS ID MK_LPAREN relop_expr_list MK_RPAREN
@@ -1478,6 +1488,7 @@ var_ref* deal_factor(AST_NODE* ptr){
                 printf("error %d: unary minus applied to non scalar expression\n",ptr->linenumber);
                 op->type=ERROR_;
             }
+
             break;
         case F_ID_NOT:
         //OP_NOT ID MK_LPAREN relop_expr_list MK_RPAREN

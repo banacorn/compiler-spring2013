@@ -1,6 +1,9 @@
+int b () {
+    return 2;
+}
+
 void main () {
     int a;
-    a = read() + 100;
-    write(a * 2);
+    a = b();
     return;
 }
