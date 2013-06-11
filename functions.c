@@ -9,6 +9,11 @@
 
 void init();
 
+typedef struct List {
+    char * data;
+    int number;
+    struct List * cons;
+} List;
 
 
 
@@ -17,7 +22,11 @@ FILE * fp;
 int localVariableOrder;
 int globalVariableInitialized;
 int registerNumber = 8;
-// char * functionName;
+ST_TYPE LHTYPE;
+
+
+List * literalStringList;
+int literalStringNumber = 0;
 
 extern symtab * hash_table[TABLE_SIZE];
 extern int linenumber;
@@ -60,6 +69,31 @@ void VerifyMainCall(){
    printf("Warning: no valid Main function \n");
 }
 
+void
+insertLiteralString (char * string) {
+
+    if (!literalStringList) {
+        literalStringList = malloc(sizeof(List));
+    }
+
+    List * l = malloc(sizeof(List));
+    l -> data = string;
+    l -> cons = literalStringList;
+    l -> number = literalStringNumber;
+    literalStringList = l;
+    literalStringNumber++;
+}
+
+void
+genLiteralString () {
+    List * l = literalStringList;
+    while (l) {
+        if (l -> data) {
+            fprintf(fp, "    m%d: .asciiz %s\n", l -> number, l -> data);
+        }
+        l = l -> cons;
+    } 
+}
 
 
 void build_symtable_check(AST_NODE *ast){
@@ -149,11 +183,7 @@ genLocalVariableDeclaration (char * name, ST_TYPE type) {
     tab = lookup(name);
     tab -> offset = -4 + -4 * localVariableOrder;
     tab -> number = localVariableOrder;
-    // printf("%d\n", localVariableOrder);
-    // printTab(tab);
     localVariableOrder++;
-    // printf("set %p\n", tab);
-    // printf("%s %d\n", tab -> lexeme, tab -> offset);
 }
 
 void
@@ -161,15 +191,16 @@ genWrite (var_ref * ref) {
     switch (ref -> type) {
         case INT_:
             fprintf(fp, "    li $v0, 1\n");
+            fprintf(fp, "    move $a0, $%d\n", ref -> r);
             break;
         case FLOAT_:
             fprintf(fp, "    li $v0, 2\n");
             break;
-        case STR_:
+        case STRING_:
             fprintf(fp, "    li $v0, 4\n");
+            fprintf(fp, "    la $a0, m%d\n", ref -> r);
             break;
     }
-    fprintf(fp, "    move $a0, $%d\n", ref -> r);
     fprintf(fp, "    syscall\n");
 }
 
@@ -222,13 +253,13 @@ genEpilogue (char * name) {
     // misc data
     fprintf(fp, ".data\n");
     fprintf(fp, "    %s_framesize: .word %d\n", name, 32 + localVariableOrder * 4);
+    genLiteralString();
 }
 
 
 void
 genIntConst (var_ref * ref, int value) {
     ref -> r = getRegister();
-    // printf("$%d = %d\n", ref -> r, value);
     fprintf(fp, "    li $%d, %d\n", ref -> r, value);
 }
 
@@ -241,9 +272,9 @@ genFloatConst (var_ref * ref, float value) {
 
 void
 genStringConst (var_ref * ref, char * value) {
-    // node -> r = getRegister();
-    // switch (node -> )
-    // printf("%s\n", );
+    ref -> r = literalStringNumber;
+    printf("#%d\n", literalStringNumber);
+    insertLiteralString(value);
 }
 
 void
@@ -292,6 +323,22 @@ genAnd (var_ref * a, var_ref * b) {
 }
 
 int
+genNeg (var_ref * a) {
+    int result = getRegister();
+    fprintf(fp, "    neg $%d, $%d\n", result, a -> r);
+    a -> r = result;
+    return result;
+}
+
+int
+genNot (var_ref * a) {
+    int result = getRegister();
+    fprintf(fp, "    not $%d, $%d\n", result, a -> r);
+    a -> r = result;
+    return result;
+}
+
+int
 genMul (var_ref * a, var_ref * b) {
     // printf("$%d x $%d\n", a -> r, b -> r);
     int result = getRegister();
@@ -322,6 +369,8 @@ genSub (var_ref * a, var_ref * b) {
 
 void
 genAssignment (char * name, int rhr) {
+ 
+
     symtab * tab = lookup(name);
     int offset = tab -> offset;
     tab -> r = rhr;
@@ -346,7 +395,6 @@ genAssignment (char * name, int rhr) {
 
 void
 genBlock (char * name) {
-    printf("BLOCK\n");
     // block
     fprintf(fp, "%s_begin:\n", name);
 }
@@ -630,9 +678,13 @@ ST_TYPE deal_stmt(AST_NODE * ptr){
             break;
         case STMT_ASSIGN:;
         //var_ref OP_ASSIGN relop_expr MK_SEMICOLON
-            var_ref * right = deal_relop_expr(ptr -> child -> sibling);
             var_ref * left = deal_var_ref(ptr -> child);
+            LHTYPE = left -> type;
+            var_ref * right = deal_relop_expr(ptr -> child -> sibling);
+
             genAssignment(left -> name, right -> r);
+
+
             result= stmt_assign_ex(left, right, ptr->linenumber);
             break;
         case STMT_IF:
@@ -679,16 +731,6 @@ ST_TYPE deal_stmt(AST_NODE * ptr){
                                 result=ERROR_;
                         }
                         else {
-                            switch (temp -> type) {
-                                case INT_:
-                                    break;
-                                case FLOAT_:
-                                    break;
-                                case STRING_:
-                        printf("write %p\n", ptr -> child -> sibling -> child -> child);
-                        // printf("write %s\n", temp -> var_ref_u.type_name);
-                                    break;
-                            }
                             result=ZERO_;
                         }
                     }
@@ -1199,6 +1241,7 @@ var_ref* deal_relop_term(AST_NODE* ptr){
     //relop_term OP_AND relop_factor
         op1=deal_relop_term(ptr->sibling);
         op2=deal_relop_factor(ptr->child);
+
         if (op1->type==ERROR_||op2->type==ERROR_)
             op1->type= ERROR_;
         else if (op1->type!=INT_||op2->type!=INT_){
@@ -1326,6 +1369,7 @@ var_ref* deal_factor(AST_NODE* ptr){
                 printf("error %d: operator Unary Minus applied to expression of non basic type\n",ptr->linenumber);
                 op->type=ERROR_;
             }
+            genNeg(op);
             break;
         case F_REL_NOT:
         //OP_NOT MK_LPAREN relop_expr MK_RPAREN
@@ -1340,6 +1384,8 @@ var_ref* deal_factor(AST_NODE* ptr){
                     op->type= INT_;
                 }
             }
+            genNot(op);
+
             break;
         case F_CONST:
         //CONST
@@ -1374,6 +1420,8 @@ var_ref* deal_factor(AST_NODE* ptr){
             }
             else {
                 op->type= (ptr->child->semantic_value.const1->const_type==INTEGERC)?INT_:FLOAT_; 
+                genIntConst(op, ptr -> child -> semantic_value.const1 -> const_u.intval);
+                genNeg(op);
             }
             break;
         case F_CONST_NOT:
@@ -1388,16 +1436,40 @@ var_ref* deal_factor(AST_NODE* ptr){
                 else{
                     printf("warning %d: operator ! applied to a float constant\n",ptr->linenumber);
                     op->type= INT_;
+
+                    genFloatConst(op, ptr -> child -> semantic_value.const1 -> const_u.fval);
+                    genNot(op);
                 }
             }
             else{
                 op->type= INT_;
+                genIntConst(op, ptr -> child -> semantic_value.const1 -> const_u.intval);
+                genNot(op);
             }
             break;
         case F_ID:
         //ID MK_LPAREN relop_expr_list MK_RPAREN
             op= check_function(ptr->child,ptr->child->sibling);
+            if ((strcmp(ptr->child->semantic_value.lexeme, "fread") == 0)|| 
+                  (strcmp(ptr->child->semantic_value.lexeme, "read") == 0) ||
+                (strcmp(ptr->child->semantic_value.lexeme, "READ") == 0) ||
+                  (strcmp(ptr->child->semantic_value.lexeme, "FREAD") == 0)){
+                // READ = 1;
+                printf("fuck %d\n", LHTYPE);
+                switch (LHTYPE) {
+                    case INT_:
+                        fprintf(fp, "    li $v0, 5\n");
+                        break;
+                    case FLOAT_:
+                        fprintf(fp, "    li $v0, 6\n");
+                        break;
+                }
+                int result = getRegister();
+                fprintf(fp, "    syscall\n");
+                fprintf(fp, "    move $%d, $v0\n", result);
+                op -> r = result;
 
+            }
             break;
         case F_ID_MINUS:
         //OP_MINUS ID MK_LPAREN relop_expr_list MK_RPAREN

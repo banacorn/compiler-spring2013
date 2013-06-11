@@ -1,11 +1,6 @@
-int func0 () {
-    return 1;
-}
-
-float e;
 void main () {
-    int aa;
-    aa = 1 && 4 > 4 + 6;
-    write(aa);
+    int a;
+    a = read() + 100;
+    write(a * 2);
     return;
 }
