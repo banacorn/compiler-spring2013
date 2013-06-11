@@ -1,7 +1,4 @@
 .data
-    a:		.word 0
-    c:		.word 0
-    eee:		.float 0.0
 .text
 func0:
     sw $ra, 0($sp)
@@ -19,6 +16,10 @@ func0:
     sw $14, 8($sp)
     sw $15, 4($sp)
 func0_begin:
+!!!!!!!!!!
+!!!!!!!!!!
+!!!!!!!!!!
+!!!!!!!!!!
 func0_end:
     lw $8, 32($sp)
     lw $9, 28($sp)
@@ -33,7 +34,7 @@ func0_end:
     lw $fp, 0($fp)
     jr $ra
 .data
-    func0_framesize: .word 44
+    func0_framesize: .word 40
 .data
     e:		.float 0.0
 .text

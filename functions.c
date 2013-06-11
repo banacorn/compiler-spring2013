@@ -16,6 +16,7 @@ FILE * fp;
 
 int localVariableOrder;
 int globalVariableInitialized;
+int registerNumber = 0;
 // char * functionName;
 
 extern symtab * hash_table[TABLE_SIZE];
@@ -90,10 +91,28 @@ void build_symtable_check(AST_NODE *ast){
 //
 //
 //
+void
+printTab (symtab * tab) {
+    printf("------------------\n");
+    printf("    name: %s\n", tab -> lexeme);
+    printf("    scope: %d\n", tab -> scope);
+    printf("    line: %d\n", tab -> line);
+    printf("    offset: %d\n", tab -> offset);
+    printf("    #: %d\n", tab -> number);
+}
 
 
 void init () {
     fp = fopen(OUTPUT, "w");
+}
+
+
+int getRegister () {
+    int n = registerNumber;
+    registerNumber++;
+    if (registerNumber == 8)
+        registerNumber = 0;
+    return n;
 }
 
 void
@@ -129,8 +148,12 @@ genLocalVariableDeclaration (char * name, ST_TYPE type) {
     symtab * tab;
     tab = lookup(name);
     tab -> offset = -4 + -4 * localVariableOrder;
-    // printf("%d\n", tab -> offset);
+    tab -> number = localVariableOrder;
+    // printf("%d\n", localVariableOrder);
+    // printTab(tab);
     localVariableOrder++;
+    // printf("set %p\n", tab);
+    // printf("%s %d\n", tab -> lexeme, tab -> offset);
 }
 
 void
@@ -140,6 +163,10 @@ genWrite (char * string, ST_TYPE type) {
 
 void
 genPrologue (char * name) {
+
+    fprintf(fp, ".text\n");
+    fprintf(fp, "%s:\n", name);
+
     // prologue
     fprintf(fp, "    sw $ra, 0($sp)\n");
     fprintf(fp, "    sw $fp, -4($sp)\n");
@@ -179,27 +206,64 @@ genEpilogue (char * name) {
     } else {
         fprintf(fp, "    jr $ra\n");
     }
-}
-void
-genGlobalFuncitonDeclratation (char * name, ST_TYPE type) {
-   
-    fprintf(fp, ".text\n");
-    fprintf(fp, "%s:\n", name);
-
-    genPrologue(name);
-    
-    // block
-    fprintf(fp, "%s_begin:\n", name);
-
-
-    genEpilogue(name);
-
 
     // misc data
     fprintf(fp, ".data\n");
     fprintf(fp, "    %s_framesize: .word %d\n", name, 32 + localVariableOrder * 4);
 }
 
+
+void
+genIntConst (AST_NODE * node, int value) {
+    node -> r = getRegister();
+    printf("$%d = %d\n", node -> r, value);
+    fprintf(fp, "!!!!!!!!!!\n");
+}
+
+void
+genFloatConst (AST_NODE * node, float value) {
+    // node -> r = getRegister();
+    // switch (node -> )
+    // printf("%s\n", );
+}
+void
+genStringConst (AST_NODE * node, char * value) {
+    // node -> r = getRegister();
+    // switch (node -> )
+    // printf("%s\n", );
+}
+
+void
+genMul (AST_NODE * a, AST_NODE * b) {
+    printf("$%d x $%d\n", a -> r, b -> r);
+}
+
+void
+genAssignment () {
+    printf("assignment gen!!\n");
+}
+
+// void
+// genGlobalFuncitonDeclratation (char * name, ST_TYPE type) {
+   
+//     genPrologue(name);
+    
+//     // block
+//     fprintf(fp, "%s_begin:\n", name);
+
+
+//     genEpilogue(name);
+
+
+// }
+
+
+void
+genBlock (char * name) {
+    printf("BLOCK\n");
+    // block
+    fprintf(fp, "%s_begin:\n", name);
+}
 
 //
 //
@@ -235,7 +299,7 @@ ST_TYPE deal_func_decl(AST_NODE *ptr){
     int i=0;
 
 
-    int toGenGlobalFuncitonDeclratation = 0;
+    // int toGenGlobalFuncitonDeclratation = 0;
 
     IS_RETURN=0;
     scope++;
@@ -320,15 +384,15 @@ ST_TYPE deal_func_decl(AST_NODE *ptr){
                     PSF->PL=NULL;
                     PSF->params=0;
                     ptr->child->sibling->symptr=insert(ptr->child->sibling->semantic_value.lexeme, FUNC_, PSF, 0, ptr->linenumber);
-                    toGenGlobalFuncitonDeclratation = 1;
                 }
                 else{
                     printf("error %d: redeclaration of symbol as function, declared previously as %s on line %d\n",ptr->linenumber,printtype(PST->type),PST->line);
                     result=ERROR_;
                 }
+                genPrologue(ptr -> child -> sibling -> semantic_value.lexeme);
+                genBlock(ptr -> child -> sibling -> semantic_value.lexeme);
                 result=deal_block(ptr->child->sibling->sibling);
-                if (toGenGlobalFuncitonDeclratation) 
-                    genGlobalFuncitonDeclratation(ptr -> child -> sibling -> semantic_value.lexeme, func_return);
+                genEpilogue(ptr -> child -> sibling -> semantic_value.lexeme);
                 break;
             case FD_TYPEDEF_NONE:
             //struct_type ID MK_LPAREN  MK_RPAREN MK_LBRACE block MK_RBRACE
@@ -356,15 +420,16 @@ ST_TYPE deal_func_decl(AST_NODE *ptr){
                     PSF->PL=NULL;
                     PSF->params=0;
                     ptr->child->symptr=insert(ptr->child->semantic_value.lexeme, FUNC_, PSF, 0, ptr->linenumber);
-                    toGenGlobalFuncitonDeclratation = 1;
                 }
                 else{
                     printf("error %d: redeclaration of symbol as function, declared previously as %s on line %d\n",ptr->linenumber,printtype(PST->type),PST->line);
                     result=ERROR_;
                 }
+
+                genPrologue(ptr -> child -> semantic_value.lexeme);
+                genBlock(ptr -> child -> semantic_value.lexeme);
                 result=deal_block(ptr->child->sibling);
-                if (toGenGlobalFuncitonDeclratation)
-                    genGlobalFuncitonDeclratation(ptr -> child -> semantic_value.lexeme, VOID_);
+                genEpilogue(ptr -> child -> semantic_value.lexeme);
                 break;
         }
     }
@@ -477,9 +542,12 @@ ST_TYPE deal_stmt(AST_NODE * ptr){
                 result=(result==ERROR_)?ERROR_:generate;
             }
             break;
-        case STMT_ASSIGN:
+        case STMT_ASSIGN:;
         //var_ref OP_ASSIGN relop_expr MK_SEMICOLON
-            result= stmt_assign_ex(deal_var_ref(ptr->child),deal_relop_expr(ptr->child->sibling), ptr->linenumber);
+            var_ref * right = deal_relop_expr(ptr -> child -> sibling);
+            var_ref * left = deal_var_ref(ptr -> child);
+            genAssignment();
+            result= stmt_assign_ex(left, right, ptr->linenumber);
             break;
         case STMT_IF:
         //IF MK_LPAREN test MK_RPAREN stmt
@@ -1125,6 +1193,7 @@ var_ref* deal_term(AST_NODE* ptr){
     //term mul_op factor
         op1=deal_term(ptr->child);
         op2=deal_factor(ptr->child->sibling->sibling);
+        genMul(op1, op2);
         if (op1->type==ERROR_||op2->type==ERROR_)
             op1->type= ERROR_;
         else if((op1->type!=INT_)&&(op1->type!=FLOAT_)){
@@ -1178,12 +1247,17 @@ var_ref* deal_factor(AST_NODE* ptr){
             switch (ptr->child->semantic_value.const1->const_type){
                 case INTEGERC:
                     op->type= INT_;
+                    genIntConst(op, ptr -> child -> semantic_value.const1 -> const_u.intval);
                     break;
                 case FLOATC:
                     op->type= FLOAT_;
+                    genFloatConst(op, ptr -> child -> semantic_value.const1 -> const_u.fval);
+
                     break;
                 case STRINGC:
                     op->type= STRING_;
+                    genStringConst(op, ptr -> child -> semantic_value.const1 -> const_u.sc);
+
                     break;
                 default:
                     op->type= ERROR_;
@@ -1270,6 +1344,7 @@ var_ref* deal_factor(AST_NODE* ptr){
 }
 
 var_ref* deal_var_ref(AST_NODE * ptr){
+
     var_ref * temp;
     symtab *STP;
     var_ref * op;
@@ -1289,9 +1364,15 @@ var_ref* deal_var_ref(AST_NODE * ptr){
                 temp->type= ERROR_;
             }
             else {
+
+                
                 temp->type=STP->type;
                 temp->name=ptr->child->semantic_value.lexeme;
-                
+
+                // symtab * tab = lookup(temp -> name);
+                // printTab(tab);
+
+
                 if (temp->type==STR_VAR_)
                     temp->var_ref_u.type_name=STP->symtab_u.type_name;
                     

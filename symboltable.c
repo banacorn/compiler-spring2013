@@ -68,6 +68,9 @@ symtab * insert(char *name,ST_TYPE type,void * P,IS_TYPE_DEF TypeDef, int line){
 	symptr->type_when_def=TypeDef;
 	symptr->lexeme=name;
 	symptr->line=line;
+	// printf("fucking you\n");
+	// symptr -> offset = 0;
+	// symptr -> number = 0;
 	switch (type){
 		case ARR_:
 			symptr->symtab_u.st_arr=P;
