@@ -21,12 +21,15 @@ FILE * fp;
 
 int localVariableOrder;
 int globalVariableInitialized;
-int registerNumber = 8;
 ST_TYPE LHTYPE;
 
 
 List * literalStringList;
-int literalStringNumber = 0;
+
+// register
+int iRegisterIndex = 8;
+int fpRegisterIndex = 4;
+int literalStringIndex = 0;
 
 extern symtab * hash_table[TABLE_SIZE];
 extern int linenumber;
@@ -69,6 +72,48 @@ void VerifyMainCall(){
    printf("Warning: no valid Main function \n");
 }
 
+reference
+getStrLit () {
+    reference r;
+    r.index = literalStringIndex++;
+    r.type = StrLit;
+    return r;
+}
+
+reference 
+getIReg () {
+    reference r;
+    r.type = IReg;
+    r.index = iRegisterIndex;
+    iRegisterIndex++;
+    if (iRegisterIndex == 16)
+        iRegisterIndex = 8;
+    return r;
+}
+
+
+reference 
+getFPReg () {
+    reference r;
+    r.type = FPReg;
+    r.index = fpRegisterIndex;
+    fpRegisterIndex += 2;
+    if (fpRegisterIndex == 10)
+        fpRegisterIndex = 16;
+    if (fpRegisterIndex == 20)
+        fpRegisterIndex = 4;
+    return r;
+}
+
+
+// int getRegister () {
+//     int n = registerIndex;
+//     registerIndex++;
+//     if (registerIndex == 16)
+//         registerIndex = 8;
+//     return n;
+// }
+
 void
 insertLiteralString (char * string) {
 
@@ -79,9 +124,8 @@ insertLiteralString (char * string) {
     List * l = malloc(sizeof(List));
     l -> data = string;
     l -> cons = literalStringList;
-    l -> number = literalStringNumber;
+    l -> number = getStrLit().index;
     literalStringList = l;
-    literalStringNumber++;
 }
 
 void
@@ -131,7 +175,7 @@ printTab (symtab * tab) {
     printf("    name: %s\n", tab -> lexeme);
     printf("    scope: %d\n", tab -> scope);
     printf("    offset: %d\n", tab -> offset);
-    printf("    register: %d\n", tab -> r);
+    printf("    register: %d\n", tab -> reference.index);
     printf("------------------\n");
 }
 
@@ -141,13 +185,6 @@ void init () {
 }
 
 
-int getRegister () {
-    int n = registerNumber;
-    registerNumber++;
-    if (registerNumber == 16)
-        registerNumber = 8;
-    return n;
-}
 
 void
 functionStart () {
@@ -185,9 +222,10 @@ genLocalVariableDeclaration (char * name, ST_TYPE type) {
     tab -> number = localVariableOrder;
     localVariableOrder++;
 }
+
 void
 genReturn (var_ref * ref) {
-    fprintf(fp, "    move $v0, $%d\n", ref -> r);
+    fprintf(fp, "    move $v0, $%d\n", ref -> reference.index);
 };
 
 void
@@ -195,22 +233,22 @@ genWrite (var_ref * ref) {
     switch (ref -> type) {
         case INT_:
             fprintf(fp, "    li $v0, 1\n");
-            fprintf(fp, "    move $a0, $%d\n", ref -> r);
+            fprintf(fp, "    move $a0, $%d\n", ref -> reference.index);
             break;
         case FLOAT_:
             fprintf(fp, "    li $v0, 2\n");
             break;
         case STRING_:
             fprintf(fp, "    li $v0, 4\n");
-            fprintf(fp, "    la $a0, m%d\n", ref -> r);
+            fprintf(fp, "    la $a0, m%d\n", ref -> reference.index);
             break;
     }
     fprintf(fp, "    syscall\n");
 }
 
-int
+reference
 genInvocation (char * name) {
-    int result;
+    reference reference;
     if ((strcmp(name, "fread") == 0)|| 
         (strcmp(name, "read") == 0) ||
         (strcmp(name, "READ") == 0) ||
@@ -218,21 +256,22 @@ genInvocation (char * name) {
         switch (LHTYPE) {
             case INT_:
                 fprintf(fp, "    li $v0, 5\n");
+                reference = getIReg();
                 break;
             case FLOAT_:
+                reference = getFPReg();
                 fprintf(fp, "    li $v0, 6\n");
                 break;
         }
-        result = getRegister();
         fprintf(fp, "    syscall\n");
-        fprintf(fp, "    move $%d, $v0\n", result);
-        return result;
+        fprintf(fp, "    move $%d, $v0\n", reference.index);
+        return reference;
     } else {
         // printf("jump to %s\n", name);
         fprintf(fp, "    jal %s_entry\n", name);
-        result = getRegister();
-        fprintf(fp, "    move $%d, $v0\n", result);
-        return result;
+        reference = getIReg();
+        fprintf(fp, "    move $%d, $v0\n", reference.index);
+        return reference;
     }
 }
 
@@ -293,123 +332,117 @@ genEpilogue (char * name) {
 }
 
 
-void
-genIntConst (var_ref * ref, int value) {
-    ref -> r = getRegister();
-    fprintf(fp, "    li $%d, %d\n", ref -> r, value);
+reference
+genIntConst (int value) {
+    reference r = getIReg();
+    fprintf(fp, "    li $%d, %d\n", r.index, value);
+    return r;
 }
 
-void
-genFloatConst (var_ref * ref, float value) {
+reference
+genFloatConst (float value) {
     // ref -> f = getFRegister();
     // fprintf(fp, "    li $%d, %f\n", ref -> f, value);
 
 }
 
-void
-genStringConst (var_ref * ref, char * value) {
-    ref -> r = literalStringNumber;
+reference
+genStringConst (char * value) {
+    reference r = getStrLit();
     insertLiteralString(value);
 }
 
-void
+reference
 genIDConst (var_ref * ref) {
-    ref -> r = lookup(ref -> name) -> r;
+    return lookup(ref -> name) -> reference;
 }
 
-int 
+reference
 genRel (var_ref * a, var_ref * b, OP_TYPE_PROP type) {
-    int result = getRegister();
+    reference r = getIReg();
     switch (type) {
         case OPT_EQ:
-            fprintf(fp, "    seq $%d, $%d, $%d\n", result, a -> r, b -> r);
+            fprintf(fp, "    seq $%d, $%d, $%d\n", r.index, a -> reference.index, b -> reference.index);
             break;
         case OPT_NE:
-            fprintf(fp, "    sne $%d, $%d, $%d\n", result, a -> r, b -> r);
+            fprintf(fp, "    sne $%d, $%d, $%d\n", r.index, a -> reference.index, b -> reference.index);
             break;
         case OPT_GE:
-            fprintf(fp, "    sge $%d, $%d, $%d\n", result, a -> r, b -> r);
+            fprintf(fp, "    sge $%d, $%d, $%d\n", r.index, a -> reference.index, b -> reference.index);
             break;
         case OPT_LE:
-            fprintf(fp, "    sle $%d, $%d, $%d\n", result, a -> r, b -> r);
+            fprintf(fp, "    sle $%d, $%d, $%d\n", r.index, a -> reference.index, b -> reference.index);
             break;
         case OPT_GT:
-            fprintf(fp, "    sgt $%d, $%d, $%d\n", result, a -> r, b -> r);
+            fprintf(fp, "    sgt $%d, $%d, $%d\n", r.index, a -> reference.index, b -> reference.index);
             break;
         case OPT_LT:
-            fprintf(fp, "    slt $%d, $%d, $%d\n", result, a -> r, b -> r);
+            fprintf(fp, "    slt $%d, $%d, $%d\n", r.index, a -> reference.index, b -> reference.index);
             break;
     }
-    return result;
+    return r;
 }
 
 
-int
+reference
 genOr (var_ref * a, var_ref * b) {
-    int result = getRegister();
-    fprintf(fp, "    or $%d, $%d, $%d\n", result, a -> r, b -> r);
-    return result;
+    reference reference = getIReg();
+    fprintf(fp, "    or $%d, $%d, $%d\n", reference.index, a -> reference.index, b -> reference.index);
+    return reference;
 }
-int
+reference
 genAnd (var_ref * a, var_ref * b) {
-    int result = getRegister();
-    fprintf(fp, "    and $%d, $%d, $%d\n", result, a -> r, b -> r);
-    return result;
+    reference reference = getIReg();
+    fprintf(fp, "    and $%d, $%d, $%d\n", reference.index, a -> reference.index, b -> reference.index);
+    return reference;
 }
 
-int
+reference
 genNeg (var_ref * a) {
-    int result = getRegister();
-    fprintf(fp, "    neg $%d, $%d\n", result, a -> r);
-    a -> r = result;
-    return result;
+    reference reference = getIReg();
+    fprintf(fp, "    neg $%d, $%d\n", reference.index, a -> reference.index);
+    return reference;
 }
 
-int
+reference
 genNot (var_ref * a) {
-    int result = getRegister();
-    fprintf(fp, "    not $%d, $%d\n", result, a -> r);
-    a -> r = result;
-    return result;
+    reference reference = getIReg();
+    fprintf(fp, "    not $%d, $%d\n", reference.index, a -> reference.index);
+    return reference;
 }
 
-int
+reference
 genMul (var_ref * a, var_ref * b) {
-    // printf("$%d x $%d\n", a -> r, b -> r);
-    int result = getRegister();
-    fprintf(fp, "    mul $%d, $%d, $%d\n", result, a -> r, b -> r);
-    return result;
+    reference reference = getIReg();
+    fprintf(fp, "    mul $%d, $%d, $%d\n", reference.index, a -> reference.index, b -> reference.index);
+    return reference;
 }
-
-int
+reference
 genDiv (var_ref * a, var_ref * b) {
-    int result = getRegister();
-    fprintf(fp, "    div $%d, $%d, $%d\n", result, a -> r, b -> r);
-    return result;
+    reference reference = getIReg();
+    fprintf(fp, "    div $%d, $%d, $%d\n", reference.index, a -> reference.index, b -> reference.index);
+    return reference;
 }
-
-int
+reference
 genAdd (var_ref * a, var_ref * b) {
-    int result = getRegister();
-    fprintf(fp, "    add $%d, $%d, $%d\n", result, a -> r, b -> r);
-    return result;
+    reference reference = getIReg();
+    fprintf(fp, "    add $%d, $%d, $%d\n", reference.index, a -> reference.index, b -> reference.index);
+    return reference;
+}
+reference
+genSub (var_ref * a, var_ref * b) {
+    reference reference = getIReg();
+    fprintf(fp, "    sub $%d, $%d, $%d\n", reference.index, a -> reference.index, b -> reference.index);
+    return reference;
 }
 
-int
-genSub (var_ref * a, var_ref * b) {
-    int result = getRegister();
-    fprintf(fp, "    sub $%d, $%d, $%d\n", result, a -> r, b -> r);
-    return result;
-}
 
 void
-genAssignment (char * name, int rhr) {
- 
-
+genAssignment (char * name, reference rhr) {
     symtab * tab = lookup(name);
     int offset = tab -> offset;
-    tab -> r = rhr;
-    fprintf(fp, "    sw $%d, %d($fp)\n", rhr, offset);
+    tab -> reference = rhr;
+    fprintf(fp, "    sw $%d, %d($fp)\n", rhr.index, offset);
 
 }
 
@@ -717,7 +750,7 @@ ST_TYPE deal_stmt(AST_NODE * ptr){
             LHTYPE = left -> type;
             var_ref * right = deal_relop_expr(ptr -> child -> sibling);
 
-            genAssignment(left -> name, right -> r);
+            genAssignment(left -> name, right -> reference);
 
 
             result= stmt_assign_ex(left, right, ptr->linenumber);
@@ -1260,7 +1293,7 @@ var_ref* deal_relop_expr(AST_NODE* ptr){
         else{
             op1->type= INT_;
         }
-        op1 -> r = genOr(op1, op2);
+        op1 -> reference = genOr(op1, op2);
         return op1;
     }
 }
@@ -1292,7 +1325,7 @@ var_ref* deal_relop_term(AST_NODE* ptr){
         else{
             op1->type= INT_;
         }
-        op1 -> r = genAnd(op1, op2);
+        op1 -> reference = genAnd(op1, op2);
         return op1;
     }
 
@@ -1318,7 +1351,7 @@ var_ref* deal_relop_factor(AST_NODE* ptr){
         else{
             op1->type= INT_;
         }
-        op1 -> r = genRel(op1, op2, ptr -> child -> sibling -> semantic_value.op_type);
+        op1 -> reference = genRel(op1, op2, ptr -> child -> sibling -> semantic_value.op_type);
         return op1;
     }
 }
@@ -1348,9 +1381,9 @@ var_ref* deal_expr(AST_NODE* ptr){
             op1->type= (op1->type==FLOAT_||op2->type==FLOAT_)?FLOAT_:INT_;
         }
         if (ptr -> child -> sibling -> semantic_value.op_type == OPT_ADD)
-            op1 -> r = genAdd(op1, op2);
+            op1 -> reference = genAdd(op1, op2);
         else if (ptr -> child -> sibling -> semantic_value.op_type == OPT_SUB)
-            op1 -> r = genSub(op1, op2);
+            op1 -> reference = genSub(op1, op2);
         
         return op1;
     }
@@ -1383,9 +1416,9 @@ var_ref* deal_term(AST_NODE* ptr){
         // printf("%d\n", ptr->child->sibling->semantic_value.op_type);
         // printf("%d\n", OPT_MUL);
         if (ptr -> child -> sibling -> semantic_value.op_type == OPT_MUL)
-            op1 -> r = genMul(op1, op2);
+            op1 -> reference = genMul(op1, op2);
         if (ptr -> child -> sibling -> semantic_value.op_type == OPT_DIV)
-            op1 -> r = genDiv(op1, op2);
+            op1 -> reference = genDiv(op1, op2);
         return op1;
     }
 }
@@ -1404,7 +1437,7 @@ var_ref* deal_factor(AST_NODE* ptr){
                 printf("error %d: operator Unary Minus applied to expression of non basic type\n",ptr->linenumber);
                 op->type=ERROR_;
             }
-            genNeg(op);
+            op -> reference = genNeg(op);
             break;
         case F_REL_NOT:
         //OP_NOT MK_LPAREN relop_expr MK_RPAREN
@@ -1419,7 +1452,7 @@ var_ref* deal_factor(AST_NODE* ptr){
                     op->type= INT_;
                 }
             }
-            genNot(op);
+            op -> reference = genNot(op);
 
             break;
         case F_CONST:
@@ -1429,16 +1462,16 @@ var_ref* deal_factor(AST_NODE* ptr){
             switch (ptr->child->semantic_value.const1->const_type){
                 case INTEGERC:
                     op->type= INT_;
-                    genIntConst(op, ptr -> child -> semantic_value.const1 -> const_u.intval);
+                    op -> reference = genIntConst(ptr -> child -> semantic_value.const1 -> const_u.intval);
                     break;
                 case FLOATC:
                     op->type= FLOAT_;
-                    genFloatConst(op, ptr -> child -> semantic_value.const1 -> const_u.fval);
+                    op -> reference = genFloatConst(ptr -> child -> semantic_value.const1 -> const_u.fval);
 
                     break;
                 case STRINGC:
                     op->type= STRING_;
-                    genStringConst(op, ptr -> child -> semantic_value.const1 -> const_u.sc);
+                    op -> reference = genStringConst(ptr -> child -> semantic_value.const1 -> const_u.sc);
 
                     break;
                 default:
@@ -1455,8 +1488,8 @@ var_ref* deal_factor(AST_NODE* ptr){
             }
             else {
                 op->type= (ptr->child->semantic_value.const1->const_type==INTEGERC)?INT_:FLOAT_; 
-                genIntConst(op, ptr -> child -> semantic_value.const1 -> const_u.intval);
-                genNeg(op);
+                op -> reference = genIntConst(ptr -> child -> semantic_value.const1 -> const_u.intval);
+                op -> reference = genNeg(op);
             }
             break;
         case F_CONST_NOT:
@@ -1472,20 +1505,20 @@ var_ref* deal_factor(AST_NODE* ptr){
                     printf("warning %d: operator ! applied to a float constant\n",ptr->linenumber);
                     op->type= INT_;
 
-                    genFloatConst(op, ptr -> child -> semantic_value.const1 -> const_u.fval);
-                    genNot(op);
+                    op -> reference = genFloatConst(ptr -> child -> semantic_value.const1 -> const_u.fval);
+                    op -> reference = genNot(op);
                 }
             }
             else{
                 op->type= INT_;
-                genIntConst(op, ptr -> child -> semantic_value.const1 -> const_u.intval);
-                genNot(op);
+                op -> reference = genIntConst(ptr -> child -> semantic_value.const1 -> const_u.intval);
+                op -> reference = genNot(op);
             }
             break;
         case F_ID:
         //ID MK_LPAREN relop_expr_list MK_RPAREN
             op= check_function(ptr->child,ptr->child->sibling);
-            op -> r = genInvocation(ptr -> child -> semantic_value.lexeme);
+            op -> reference = genInvocation(ptr -> child -> semantic_value.lexeme);
             break;
         case F_ID_MINUS:
         //OP_MINUS ID MK_LPAREN relop_expr_list MK_RPAREN
@@ -1494,8 +1527,8 @@ var_ref* deal_factor(AST_NODE* ptr){
                 printf("error %d: unary minus applied to non scalar expression\n",ptr->linenumber);
                 op->type=ERROR_;
             }
-            op -> r = genInvocation(ptr -> child -> semantic_value.lexeme);
-            genNeg(op);
+            op -> reference = genInvocation(ptr -> child -> semantic_value.lexeme);
+            op -> reference = genNeg(op);
             break;
         case F_ID_NOT:
         //OP_NOT ID MK_LPAREN relop_expr_list MK_RPAREN
@@ -1504,13 +1537,13 @@ var_ref* deal_factor(AST_NODE* ptr){
                 printf("error %d: operator ! applied to non integer expression\n",ptr->linenumber);
                 op->type=ERROR_;
             }
-            op -> r = genInvocation(ptr -> child -> semantic_value.lexeme);
-            genNot(op);
+            op -> reference = genInvocation(ptr -> child -> semantic_value.lexeme);
+            op -> reference = genNot(op);
             break;
         case F_VAR:
         //var_ref
             op=deal_var_ref(ptr->child);
-            genIDConst(op);
+            op -> reference = genIDConst(op);
 
             break;
         case F_VAR_MINUS:
@@ -1520,8 +1553,8 @@ var_ref* deal_factor(AST_NODE* ptr){
                 printf("error %d: operator Unary Minus applied to non Basic type %s\n",ptr->linenumber,op->name);
                 op->type= ERROR_;
             }
-            genIDConst(op);
-            genNeg(op);
+            op -> reference = genIDConst(op);
+            op -> reference = genNeg(op);
             break;
         case F_VAR_NOT:
         //OP_NOT var_ref
@@ -1536,8 +1569,8 @@ var_ref* deal_factor(AST_NODE* ptr){
                     op->type= INT_;
                 }
             }
-            genIDConst(op);
-            genNot(op);
+            op -> reference = genIDConst(op);
+            op -> reference = genNot(op);
             break;
     }
     return op;

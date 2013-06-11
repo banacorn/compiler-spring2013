@@ -17,10 +17,12 @@ main:
     sw $14, 8($sp)
     sw $15, 4($sp)
 main_begin:
-    li $8, 5
-    sw $8, 0($fp)
+    li $8, 4
+    li $9, 3
+    add $10, $8, $9
+    sw $10, 0($fp)
     li $v0, 1
-    move $a0, $8
+    move $a0, $10
     syscall
 main_end:
 main_epilogue:

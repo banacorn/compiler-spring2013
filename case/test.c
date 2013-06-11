@@ -1,7 +1,7 @@
 int a;
 
 void main () {
-    a = 5;
+    a = 4 + 3;
     write(a);
     return;
 }

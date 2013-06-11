@@ -36,6 +36,13 @@ typedef struct {
         const_u; 
 } CON_Type;
 
+typedef enum { IReg, FPReg, StrLit } ReferenceType;
+typedef struct{
+    ReferenceType type;
+    int index;
+} reference;   
+
+
 
 
 struct AST_NODE{
@@ -138,16 +145,9 @@ struct symtab{
     int line;
     int offset;
     int number;
-    int r;
+    reference reference;
 };
 typedef struct symtab symtab;
-
-typedef enum { IReg, FPReg, StrLit } ReferenceType;
-typedef struct{
-    ReferenceType type;
-    int index;
-} reference;   
-
 
 typedef struct{
     ST_TYPE type;
@@ -156,7 +156,6 @@ typedef struct{
         char *type_name;
         Type_arr *arr_info; 
     }var_ref_u;
-    int r;
     reference reference;
 }var_ref;   
 
