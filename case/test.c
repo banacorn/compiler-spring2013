@@ -1,10 +1,7 @@
-int b () {
-    return 2;
-}
+int a;
 
 void main () {
-    int a;
-    a = b();
+    a = 5;
     write(a);
     return;
 }

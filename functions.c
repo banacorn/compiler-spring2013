@@ -266,6 +266,7 @@ void
 genEpilogue (char * name) {
     // eiplogue
     fprintf(fp, "%s_end:\n", name);
+    fprintf(fp, "%s_epilogue:\n", name);
     fprintf(fp, "    lw $8, 32($sp)\n");
     fprintf(fp, "    lw $9, 28($sp)\n");
     fprintf(fp, "    lw $10, 24($sp)\n");
@@ -300,15 +301,14 @@ genIntConst (var_ref * ref, int value) {
 
 void
 genFloatConst (var_ref * ref, float value) {
-    // node -> r = getRegister();
-    // switch (node -> )
-    // printf("%s\n", );
+    // ref -> f = getFRegister();
+    // fprintf(fp, "    li $%d, %f\n", ref -> f, value);
+
 }
 
 void
 genStringConst (var_ref * ref, char * value) {
     ref -> r = literalStringNumber;
-    printf("#%d\n", literalStringNumber);
     insertLiteralString(value);
 }
 
@@ -1494,7 +1494,8 @@ var_ref* deal_factor(AST_NODE* ptr){
                 printf("error %d: unary minus applied to non scalar expression\n",ptr->linenumber);
                 op->type=ERROR_;
             }
-
+            op -> r = genInvocation(ptr -> child -> semantic_value.lexeme);
+            genNeg(op);
             break;
         case F_ID_NOT:
         //OP_NOT ID MK_LPAREN relop_expr_list MK_RPAREN
@@ -1503,6 +1504,8 @@ var_ref* deal_factor(AST_NODE* ptr){
                 printf("error %d: operator ! applied to non integer expression\n",ptr->linenumber);
                 op->type=ERROR_;
             }
+            op -> r = genInvocation(ptr -> child -> semantic_value.lexeme);
+            genNot(op);
             break;
         case F_VAR:
         //var_ref
@@ -1517,6 +1520,8 @@ var_ref* deal_factor(AST_NODE* ptr){
                 printf("error %d: operator Unary Minus applied to non Basic type %s\n",ptr->linenumber,op->name);
                 op->type= ERROR_;
             }
+            genIDConst(op);
+            genNeg(op);
             break;
         case F_VAR_NOT:
         //OP_NOT var_ref
@@ -1531,6 +1536,8 @@ var_ref* deal_factor(AST_NODE* ptr){
                     op->type= INT_;
                 }
             }
+            genIDConst(op);
+            genNot(op);
             break;
     }
     return op;
