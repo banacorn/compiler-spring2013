@@ -227,7 +227,7 @@ genInvocation (char * name) {
         fprintf(fp, "    move $%d, $v0\n", result);
         return result;
     } else {
-
+        printf("jump to %s\n", name);
         return 0;
     }
 }
