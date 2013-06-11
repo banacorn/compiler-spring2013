@@ -16,7 +16,7 @@ FILE * fp;
 
 int localVariableOrder;
 int globalVariableInitialized;
-int registerNumber = 0;
+int registerNumber = 8;
 // char * functionName;
 
 extern symtab * hash_table[TABLE_SIZE];
@@ -96,9 +96,9 @@ printTab (symtab * tab) {
     printf("------------------\n");
     printf("    name: %s\n", tab -> lexeme);
     printf("    scope: %d\n", tab -> scope);
-    printf("    line: %d\n", tab -> line);
     printf("    offset: %d\n", tab -> offset);
-    printf("    #: %d\n", tab -> number);
+    printf("    register: %d\n", tab -> r);
+    printf("------------------\n");
 }
 
 
@@ -110,8 +110,8 @@ void init () {
 int getRegister () {
     int n = registerNumber;
     registerNumber++;
-    if (registerNumber == 8)
-        registerNumber = 0;
+    if (registerNumber == 16)
+        registerNumber = 8;
     return n;
 }
 
@@ -157,8 +157,20 @@ genLocalVariableDeclaration (char * name, ST_TYPE type) {
 }
 
 void
-genWrite (char * string, ST_TYPE type) {
-
+genWrite (var_ref * ref) {
+    switch (ref -> type) {
+        case INT_:
+            fprintf(fp, "    li $v0, 1\n");
+            break;
+        case FLOAT_:
+            fprintf(fp, "    li $v0, 2\n");
+            break;
+        case STR_:
+            fprintf(fp, "    li $v0, 4\n");
+            break;
+    }
+    fprintf(fp, "    move $a0, $%d\n", ref -> r);
+    fprintf(fp, "    syscall\n");
 }
 
 void
@@ -214,33 +226,107 @@ genEpilogue (char * name) {
 
 
 void
-genIntConst (AST_NODE * node, int value) {
-    node -> r = getRegister();
-    printf("$%d = %d\n", node -> r, value);
-    fprintf(fp, "!!!!!!!!!!\n");
+genIntConst (var_ref * ref, int value) {
+    ref -> r = getRegister();
+    // printf("$%d = %d\n", ref -> r, value);
+    fprintf(fp, "    li $%d, %d\n", ref -> r, value);
 }
 
 void
-genFloatConst (AST_NODE * node, float value) {
-    // node -> r = getRegister();
-    // switch (node -> )
-    // printf("%s\n", );
-}
-void
-genStringConst (AST_NODE * node, char * value) {
+genFloatConst (var_ref * ref, float value) {
     // node -> r = getRegister();
     // switch (node -> )
     // printf("%s\n", );
 }
 
 void
-genMul (AST_NODE * a, AST_NODE * b) {
-    printf("$%d x $%d\n", a -> r, b -> r);
+genStringConst (var_ref * ref, char * value) {
+    // node -> r = getRegister();
+    // switch (node -> )
+    // printf("%s\n", );
 }
 
 void
-genAssignment () {
-    printf("assignment gen!!\n");
+genIDConst (var_ref * ref) {
+    ref -> r = lookup(ref -> name) -> r;
+}
+
+int 
+genRel (var_ref * a, var_ref * b, OP_TYPE_PROP type) {
+    int result = getRegister();
+    switch (type) {
+        case OPT_EQ:
+            fprintf(fp, "    seq $%d, $%d, $%d\n", result, a -> r, b -> r);
+            break;
+        case OPT_NE:
+            fprintf(fp, "    sne $%d, $%d, $%d\n", result, a -> r, b -> r);
+            break;
+        case OPT_GE:
+            fprintf(fp, "    sge $%d, $%d, $%d\n", result, a -> r, b -> r);
+            break;
+        case OPT_LE:
+            fprintf(fp, "    sle $%d, $%d, $%d\n", result, a -> r, b -> r);
+            break;
+        case OPT_GT:
+            fprintf(fp, "    sgt $%d, $%d, $%d\n", result, a -> r, b -> r);
+            break;
+        case OPT_LT:
+            fprintf(fp, "    slt $%d, $%d, $%d\n", result, a -> r, b -> r);
+            break;
+    }
+    return result;
+}
+
+
+int
+genOr (var_ref * a, var_ref * b) {
+    int result = getRegister();
+    fprintf(fp, "    or $%d, $%d, $%d\n", result, a -> r, b -> r);
+    return result;
+}
+int
+genAnd (var_ref * a, var_ref * b) {
+    int result = getRegister();
+    fprintf(fp, "    and $%d, $%d, $%d\n", result, a -> r, b -> r);
+    return result;
+}
+
+int
+genMul (var_ref * a, var_ref * b) {
+    // printf("$%d x $%d\n", a -> r, b -> r);
+    int result = getRegister();
+    fprintf(fp, "    mul $%d, $%d, $%d\n", result, a -> r, b -> r);
+    return result;
+}
+
+int
+genDiv (var_ref * a, var_ref * b) {
+    int result = getRegister();
+    fprintf(fp, "    div $%d, $%d, $%d\n", result, a -> r, b -> r);
+    return result;
+}
+
+int
+genAdd (var_ref * a, var_ref * b) {
+    int result = getRegister();
+    fprintf(fp, "    add $%d, $%d, $%d\n", result, a -> r, b -> r);
+    return result;
+}
+
+int
+genSub (var_ref * a, var_ref * b) {
+    int result = getRegister();
+    fprintf(fp, "    sub $%d, $%d, $%d\n", result, a -> r, b -> r);
+    return result;
+}
+
+void
+genAssignment (char * name, int rhr) {
+    symtab * tab = lookup(name);
+    int offset = tab -> offset;
+    tab -> r = rhr;
+    fprintf(fp, "    sw $%d, %d($fp)\n", rhr, offset);
+
 }
 
 // void
@@ -546,7 +632,7 @@ ST_TYPE deal_stmt(AST_NODE * ptr){
         //var_ref OP_ASSIGN relop_expr MK_SEMICOLON
             var_ref * right = deal_relop_expr(ptr -> child -> sibling);
             var_ref * left = deal_var_ref(ptr -> child);
-            genAssignment();
+            genAssignment(left -> name, right -> r);
             result= stmt_assign_ex(left, right, ptr->linenumber);
             break;
         case STMT_IF:
@@ -585,6 +671,7 @@ ST_TYPE deal_stmt(AST_NODE * ptr){
                     }
                     else {
                         temp=deal_relop_expr(ptr->child->sibling->child->child);
+                        genWrite(temp);
                         if ((temp->type!=INT_) &&
                             (temp->type!=FLOAT_) &&
                             (temp->type!=STRING_)){
@@ -1096,6 +1183,7 @@ var_ref* deal_relop_expr(AST_NODE* ptr){
         else{
             op1->type= INT_;
         }
+        op1 -> r = genOr(op1, op2);
         return op1;
     }
 }
@@ -1126,8 +1214,10 @@ var_ref* deal_relop_term(AST_NODE* ptr){
         else{
             op1->type= INT_;
         }
+        op1 -> r = genAnd(op1, op2);
         return op1;
     }
+
 }
             
 var_ref* deal_relop_factor(AST_NODE* ptr){
@@ -1150,6 +1240,7 @@ var_ref* deal_relop_factor(AST_NODE* ptr){
         else{
             op1->type= INT_;
         }
+        op1 -> r = genRel(op1, op2, ptr -> child -> sibling -> semantic_value.op_type);
         return op1;
     }
 }
@@ -1178,6 +1269,11 @@ var_ref* deal_expr(AST_NODE* ptr){
         else{
             op1->type= (op1->type==FLOAT_||op2->type==FLOAT_)?FLOAT_:INT_;
         }
+        if (ptr -> child -> sibling -> semantic_value.op_type == OPT_ADD)
+            op1 -> r = genAdd(op1, op2);
+        else if (ptr -> child -> sibling -> semantic_value.op_type == OPT_SUB)
+            op1 -> r = genSub(op1, op2);
+        
         return op1;
     }
 }
@@ -1193,7 +1289,6 @@ var_ref* deal_term(AST_NODE* ptr){
     //term mul_op factor
         op1=deal_term(ptr->child);
         op2=deal_factor(ptr->child->sibling->sibling);
-        genMul(op1, op2);
         if (op1->type==ERROR_||op2->type==ERROR_)
             op1->type= ERROR_;
         else if((op1->type!=INT_)&&(op1->type!=FLOAT_)){
@@ -1207,6 +1302,12 @@ var_ref* deal_term(AST_NODE* ptr){
         else{
             op1->type= (op1->type==FLOAT_||op2->type==FLOAT_)?FLOAT_:INT_;
         }
+        // printf("%d\n", ptr->child->sibling->semantic_value.op_type);
+        // printf("%d\n", OPT_MUL);
+        if (ptr -> child -> sibling -> semantic_value.op_type == OPT_MUL)
+            op1 -> r = genMul(op1, op2);
+        if (ptr -> child -> sibling -> semantic_value.op_type == OPT_DIV)
+            op1 -> r = genDiv(op1, op2);
         return op1;
     }
 }
@@ -1296,6 +1397,7 @@ var_ref* deal_factor(AST_NODE* ptr){
         case F_ID:
         //ID MK_LPAREN relop_expr_list MK_RPAREN
             op= check_function(ptr->child,ptr->child->sibling);
+
             break;
         case F_ID_MINUS:
         //OP_MINUS ID MK_LPAREN relop_expr_list MK_RPAREN
@@ -1316,6 +1418,8 @@ var_ref* deal_factor(AST_NODE* ptr){
         case F_VAR:
         //var_ref
             op=deal_var_ref(ptr->child);
+            genIDConst(op);
+
             break;
         case F_VAR_MINUS:
         //OP_MINUS var_ref

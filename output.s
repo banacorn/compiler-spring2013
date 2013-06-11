@@ -16,10 +16,7 @@ func0:
     sw $14, 8($sp)
     sw $15, 4($sp)
 func0_begin:
-!!!!!!!!!!
-!!!!!!!!!!
-!!!!!!!!!!
-!!!!!!!!!!
+    li $8, 1
 func0_end:
     lw $8, 32($sp)
     lw $9, 28($sp)
@@ -34,7 +31,7 @@ func0_end:
     lw $fp, 0($fp)
     jr $ra
 .data
-    func0_framesize: .word 40
+    func0_framesize: .word 32
 .data
     e:		.float 0.0
 .text
@@ -54,6 +51,17 @@ main:
     sw $14, 8($sp)
     sw $15, 4($sp)
 main_begin:
+    li $9, 1
+    li $10, 4
+    li $11, 4
+    li $12, 6
+    add $13, $11, $12
+    sgt $14, $10, $13
+    and $15, $9, $14
+    sw $15, -4($fp)
+    li $v0, 1
+    move $a0, $15
+    syscall
 main_end:
     lw $8, 32($sp)
     lw $9, 28($sp)

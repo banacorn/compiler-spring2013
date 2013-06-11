@@ -46,7 +46,6 @@ struct AST_NODE{
 	struct AST_NODE *firstborn;
 	AST_TYPE type;
 	int linenumber;
-    int r;
 	union{
 		char *lexeme;
 		CON_Type *const1;
@@ -139,6 +138,7 @@ struct symtab{
 	int line;
 	int offset;
 	int number;
+    int r;
 };
 typedef struct symtab symtab;
 
@@ -149,6 +149,7 @@ typedef struct{
 		char *type_name;
 		Type_arr *arr_info;	
 	}var_ref_u;
+    int r;
 }var_ref;	
 
 /*
