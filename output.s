@@ -1,6 +1,6 @@
 .data
 .text
-b:
+b_entry:
     sw $ra, 0($sp)
     sw $fp, -4($sp)
     add $fp, $sp, -4
@@ -17,7 +17,7 @@ b:
     sw $15, 4($sp)
 b_begin:
     li $8, 2
-    move $8, $v0
+    move $v0, $8
 b_end:
     lw $8, 32($sp)
     lw $9, 28($sp)
@@ -51,7 +51,12 @@ main:
     sw $14, 8($sp)
     sw $15, 4($sp)
 main_begin:
-    sw $0, -4($fp)
+    jal b_entry
+    move $9, $v0
+    sw $9, -4($fp)
+    li $v0, 1
+    move $a0, $9
+    syscall
 main_end:
     lw $8, 32($sp)
     lw $9, 28($sp)

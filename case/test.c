@@ -5,5 +5,6 @@ int b () {
 void main () {
     int a;
     a = b();
+    write(a);
     return;
 }

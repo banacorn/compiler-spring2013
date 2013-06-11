@@ -187,7 +187,7 @@ genLocalVariableDeclaration (char * name, ST_TYPE type) {
 }
 void
 genReturn (var_ref * ref) {
-    fprintf(fp, "    move $%d, $v0\n", ref -> r);
+    fprintf(fp, "    move $v0, $%d\n", ref -> r);
 };
 
 void
@@ -210,6 +210,7 @@ genWrite (var_ref * ref) {
 
 int
 genInvocation (char * name) {
+    int result;
     if ((strcmp(name, "fread") == 0)|| 
         (strcmp(name, "read") == 0) ||
         (strcmp(name, "READ") == 0) ||
@@ -222,13 +223,16 @@ genInvocation (char * name) {
                 fprintf(fp, "    li $v0, 6\n");
                 break;
         }
-        int result = getRegister();
+        result = getRegister();
         fprintf(fp, "    syscall\n");
         fprintf(fp, "    move $%d, $v0\n", result);
         return result;
     } else {
-        printf("jump to %s\n", name);
-        return 0;
+        // printf("jump to %s\n", name);
+        fprintf(fp, "    jal %s_entry\n", name);
+        result = getRegister();
+        fprintf(fp, "    move $%d, $v0\n", result);
+        return result;
     }
 }
 
@@ -236,7 +240,10 @@ void
 genPrologue (char * name) {
 
     fprintf(fp, ".text\n");
-    fprintf(fp, "%s:\n", name);
+    if (strcmp(name, "main") == 0)
+        fprintf(fp, "%s:\n", name);
+    else
+        fprintf(fp, "%s_entry:\n", name);
 
     // prologue
     fprintf(fp, "    sw $ra, 0($sp)\n");
@@ -1477,7 +1484,6 @@ var_ref* deal_factor(AST_NODE* ptr){
             break;
         case F_ID:
         //ID MK_LPAREN relop_expr_list MK_RPAREN
-            printf("fuck %s\n", ptr -> child -> semantic_value.lexeme);
             op= check_function(ptr->child,ptr->child->sibling);
             op -> r = genInvocation(ptr -> child -> semantic_value.lexeme);
             break;
