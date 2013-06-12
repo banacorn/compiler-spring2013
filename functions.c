@@ -31,6 +31,8 @@ int iRegisterIndex = 8;
 int fpRegisterIndex = 4;
 int literalStringIndex = 0;
 
+int labelIndex = 0;
+
 // currentFunction
 char * currentFunction;
 
@@ -438,7 +440,7 @@ Reference
 genRel (var_ref * a, var_ref * b, OP_TYPE_PROP type) {
     Reference r = getIReg();
 
-    // if (a -> type == INT_) {
+    if (a -> type == INT_) {
         switch (type) {
             case OPT_EQ:
                 fprintf(fp, "    seq $%d, $%d, $%d\n", r.index, a -> reference.index, b -> reference.index);
@@ -459,9 +461,37 @@ genRel (var_ref * a, var_ref * b, OP_TYPE_PROP type) {
                 fprintf(fp, "    slt $%d, $%d, $%d\n", r.index, a -> reference.index, b -> reference.index);
                 break;
         }
-    // } else {
-    //     // floating point comparison
-    // }
+    } else {
+        int reverse = 0;
+        switch (type) {
+            case OPT_NE:
+                reverse = 1;
+            case OPT_EQ:
+                fprintf(fp, "    c.eq.s $f%d, $f%d\n", a -> reference.index, b -> reference.index);
+                break;
+            case OPT_GT:
+                reverse = 1;
+            case OPT_LE:
+                fprintf(fp, "    c.le.s $f%d, $f%d\n", a -> reference.index, b -> reference.index);
+                break;
+            case OPT_GE:
+                reverse = 1;
+            case OPT_LT:
+                fprintf(fp, "    c.lt.s $f%d, $f%d\n", a -> reference.index, b -> reference.index);
+                break;
+        }
+        if (reverse)
+            fprintf(fp, "    bc1f label_%d\n", labelIndex);
+        else
+            fprintf(fp, "    bc1t label_%d\n", labelIndex);
+
+        fprintf(fp, "    li $%d, 0\n", r.index);
+        fprintf(fp, "    j label_exit_%d\n", labelIndex);
+        fprintf(fp, "label_%d:\n", labelIndex);
+        fprintf(fp, "    li $%d, 1\n", r.index);
+        fprintf(fp, "label_exit_%d:\n", labelIndex);
+        labelIndex++;
+    }
     return r;
 }
 
