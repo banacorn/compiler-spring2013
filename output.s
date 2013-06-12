@@ -1,5 +1,4 @@
 .data
-    a:		.float 0.0
 .text
 main:
     sw $ra, 0($sp)
@@ -17,26 +16,44 @@ main:
     sw $14, 8($sp)
     sw $15, 4($sp)
 main_begin:
+    li $v0, 4
+    la $a0, m0
+    syscall
     li $v0, 5
     syscall
     move $8, $v0
     sw $8, -4($fp)
 while_0:
     lw $9, -4($fp)
-    move $t0, $9
+    li $10, 0
+    sgt $11, $9, $10
+    move $t0, $11
     beqz $t0, while_0_exit
-    li $v0, 4
-    la $a0, m0
-    syscall
+    lw $12, -4($fp)
+    li $13, 2
+    div $14, $12, $13
+    li $15, 1
+    sgt $8, $14, $15
+    move $t0, $8
+    beqz $t0, if_else_0_else
     li $v0, 4
     la $a0, m1
     syscall
-    lw $10, -4($fp)
-    li $11, 1
-    sub $12, $10, $11
-    sw $12, -4($fp)
+    j if_else_0_exit
+if_else_0_else:
+    li $v0, 4
+    la $a0, m2
+    syscall
+if_else_0_exit:
+    lw $9, -4($fp)
+    li $10, 1
+    sub $11, $9, $10
+    sw $11, -4($fp)
     j while_0
 while_0_exit:
+    li $12, 0
+    move $v0, $12
+    j main_end
 main_end:
 main_epilogue:
     lw $8, 32($sp)
@@ -54,5 +71,7 @@ main_epilogue:
     syscall
 .data
     main_framesize: .word 36
-    m1: .asciiz "\n"
-    m0: .asciiz "!!"
+.data
+    m2: .asciiz "lower"
+    m1: .asciiz "greater"
+    m0: .asciiz "Loop index:"

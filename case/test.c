@@ -1,16 +1,13 @@
-float a;
-
-void main () {
-
-    int a;
-
-    a = read();
-
-    while (a) {
-        write("!!");
-        write("\n");
-        a = a - 1;
+int main()
+{
+    int index;
+    write("Loop index:");
+    index = read();
+    while(index > 0){
+        if(index/2 > 1){write("greater");}
+        else {write("lower");}
+        index = index - 1;
     }
 
-    return;
+    return 0;
 }

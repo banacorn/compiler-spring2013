@@ -36,7 +36,8 @@ char * currentFunction;
 
 // control statement labels
 int whileIndex = 0;
-
+int ifIndex = 0;
+int ifElseIndex = 0;
 
 
 
@@ -185,6 +186,10 @@ void build_symtable_check(AST_NODE *ast){
             temp=temp->sibling;
         }while(temp->type==GLOBAL_DECL_LIST);
     }
+
+
+    fprintf(fp, ".data\n");
+    genLiteralString();
     
     VerifyMainCall();
     
@@ -296,6 +301,7 @@ genInvocation (char * name) {
                 fprintf(fp, "    mov.s $f%d, $f0\n", reference.index);
                 break;
         }
+        // printf("read type: %d\n", reference.type);
         return reference;
     } else {
         // printf("jump to %s\n", name);
@@ -361,7 +367,6 @@ genEpilogue (char * name) {
     // misc data
     fprintf(fp, ".data\n");
     fprintf(fp, "    %s_framesize: .word %d\n", name, 32 + localVariableOrder * 4);
-    genLiteralString();
 
     currentFunction = NULL;
 }
@@ -391,8 +396,23 @@ genStringConst (char * value) {
 Reference
 genIDConst (var_ref * ref) {
     Reference reference;
-    reference = ref -> type == INT_ ? getIReg() : getFPReg();
-    fprintf(fp, "    lw $%d, %d($fp)\n", reference.index, lookup(ref -> name) -> offset);
+    int offset = lookup(ref -> name) -> offset;
+    int global = offset == 0;
+    if (ref -> type == INT_) {
+        reference = getIReg();
+        if (global)
+            fprintf(fp, "    lw $%d, %s\n", reference.index, ref -> name);
+        else
+            fprintf(fp, "    lw $%d, %d($fp)\n", reference.index, lookup(ref -> name) -> offset);
+
+    } else if (ref -> type == FLOAT_) {
+        reference = getFPReg();
+        if (global)
+            fprintf(fp, "    l.s $f%d, %s\n", reference.index, ref -> name);
+        else    
+            fprintf(fp, "    l.s $f%d, %d($fp)\n", reference.index, lookup(ref -> name) -> offset);
+
+    }
     return reference;
 }
 
@@ -417,26 +437,31 @@ genConvert (var_ref * a, var_ref * b) {
 Reference
 genRel (var_ref * a, var_ref * b, OP_TYPE_PROP type) {
     Reference r = getIReg();
-    switch (type) {
-        case OPT_EQ:
-            fprintf(fp, "    seq $%d, $%d, $%d\n", r.index, a -> reference.index, b -> reference.index);
-            break;
-        case OPT_NE:
-            fprintf(fp, "    sne $%d, $%d, $%d\n", r.index, a -> reference.index, b -> reference.index);
-            break;
-        case OPT_GE:
-            fprintf(fp, "    sge $%d, $%d, $%d\n", r.index, a -> reference.index, b -> reference.index);
-            break;
-        case OPT_LE:
-            fprintf(fp, "    sle $%d, $%d, $%d\n", r.index, a -> reference.index, b -> reference.index);
-            break;
-        case OPT_GT:
-            fprintf(fp, "    sgt $%d, $%d, $%d\n", r.index, a -> reference.index, b -> reference.index);
-            break;
-        case OPT_LT:
-            fprintf(fp, "    slt $%d, $%d, $%d\n", r.index, a -> reference.index, b -> reference.index);
-            break;
-    }
+
+    // if (a -> type == INT_) {
+        switch (type) {
+            case OPT_EQ:
+                fprintf(fp, "    seq $%d, $%d, $%d\n", r.index, a -> reference.index, b -> reference.index);
+                break;
+            case OPT_NE:
+                fprintf(fp, "    sne $%d, $%d, $%d\n", r.index, a -> reference.index, b -> reference.index);
+                break;
+            case OPT_GE:
+                fprintf(fp, "    sge $%d, $%d, $%d\n", r.index, a -> reference.index, b -> reference.index);
+                break;
+            case OPT_LE:
+                fprintf(fp, "    sle $%d, $%d, $%d\n", r.index, a -> reference.index, b -> reference.index);
+                break;
+            case OPT_GT:
+                fprintf(fp, "    sgt $%d, $%d, $%d\n", r.index, a -> reference.index, b -> reference.index);
+                break;
+            case OPT_LT:
+                fprintf(fp, "    slt $%d, $%d, $%d\n", r.index, a -> reference.index, b -> reference.index);
+                break;
+        }
+    // } else {
+    //     // floating point comparison
+    // }
     return r;
 }
 
@@ -528,24 +553,38 @@ void
 genAssignment (char * leftName, Reference rightReference) {
     symtab * tab = lookup(leftName);
     int offset = tab -> offset;
-
+    int global = offset == 0;
 
     Reference new;
     if (tab -> type == INT_ && rightReference.type == IReg) {
-        fprintf(fp, "    sw $%d, %d($fp)\n", rightReference.index, offset);
+        if (global)
+            fprintf(fp, "    sw $%d, %s\n", rightReference.index, leftName);
+        else
+            fprintf(fp, "    sw $%d, %d($fp)\n", rightReference.index, offset);
         tab -> reference = rightReference;
     } else if (tab -> type == INT_ && rightReference.type == FPReg) {
         new = getIReg();
         fprintf(fp, "    cvt.w.s $f%d, $f%d\n", rightReference.index, rightReference.index);
         fprintf(fp, "    mfc1 $%d, $f%d\n", new.index, rightReference.index);
-        tab -> reference = new;       
+        if (global)
+            fprintf(fp, "    sw $%d, %s\n", new.index, leftName);
+        else
+            fprintf(fp, "    sw $%d, %d($fp)\n", new.index, offset);
+        tab -> reference = new;
     } else if (tab -> type == FLOAT_ && rightReference.type == FPReg) {
-        fprintf(fp, "    s.s $f%d, %d($fp)\n", rightReference.index, offset);
+        if (global)
+            fprintf(fp, "    s.s $f%d, %s\n", rightReference.index, leftName);
+        else
+            fprintf(fp, "    s.s $f%d, %d($fp)\n", rightReference.index, offset);
         tab -> reference = rightReference;
     } else if (tab -> type == FLOAT_ && rightReference.type == IReg) {
         new = getFPReg();
         fprintf(fp, "    mtc1 $%d, $f%d\n", rightReference.index, new.index);
         fprintf(fp, "    cvt.s.w $f%d, $f%d\n", new.index, new.index);
+        if (global)
+            fprintf(fp, "    s.s $f%d, %s\n", new.index, leftName);
+        else
+            fprintf(fp, "    s.s $f%d, %d($fp)\n", new.index, offset);
         tab -> reference = new;       
         
     }
@@ -553,7 +592,7 @@ genAssignment (char * leftName, Reference rightReference) {
 
 
 void
-genWhileHead (var_ref * test) {
+genWhileHead () {
     fprintf(fp, "while_%d:\n", whileIndex);
     
 }
@@ -572,6 +611,44 @@ genWhileClose () {
     whileIndex++;
 
 }
+
+void
+genIfOpen (var_ref * test) {
+    Reference reference = test -> reference;
+    fprintf(fp, "    move $t0, $%d\n", reference.index);
+    fprintf(fp, "    beqz $t0, if_%d_exit\n", ifIndex);
+}
+
+void 
+genIfClose () {
+    fprintf(fp, "if_%d_exit:\n", ifIndex);
+    ifIndex++;
+
+}
+
+
+
+
+void
+genIfElseOpen (var_ref * test) {
+    Reference reference = test -> reference;
+    fprintf(fp, "    move $t0, $%d\n", reference.index);
+    fprintf(fp, "    beqz $t0, if_else_%d_else\n", ifElseIndex);
+}
+
+void
+genIfElseBody () {
+    fprintf(fp, "    j if_else_%d_exit\n", ifElseIndex);
+    fprintf(fp, "if_else_%d_else:\n", ifElseIndex);
+}
+
+void 
+genIfElseClose () {
+    fprintf(fp, "if_else_%d_exit:\n", ifElseIndex);
+    ifElseIndex++;
+
+}
+
 
 
 
@@ -604,6 +681,9 @@ ST_TYPE deal_global_decl(AST_NODE *ptr){
     }
     else
         result=ERROR_;
+
+
+
     return result;
 }
 
@@ -817,7 +897,7 @@ ST_TYPE deal_stmt(AST_NODE * ptr){
             break;
         case STMT_WHILE:
         //WHILE MK_LPAREN test MK_RPAREN stmt
-            genWhileHead(temp);
+            genWhileHead();
             temp=deal_test(ptr->child);
             if ((temp->type!=INT_)&&(temp->type!=FLOAT_)){
                 printf("error %d: condition not a basic type in while statement\n",ptr->linenumber);
@@ -874,23 +954,28 @@ ST_TYPE deal_stmt(AST_NODE * ptr){
         case STMT_IF:
         //IF MK_LPAREN test MK_RPAREN stmt
             temp=deal_test(ptr->child);
+            genIfOpen(temp);
             if ((temp->type!=INT_)&&(temp->type!=FLOAT_)){
                 printf("error %d: condition not a basic type in if statement\n",ptr->linenumber);
                 result=ERROR_;
             }
-                generate=deal_stmt(ptr->child->sibling);
-                result=(result==ERROR_)?ERROR_:generate;
+            generate=deal_stmt(ptr->child->sibling);
+            genIfClose();
+            result=(result==ERROR_)?ERROR_:generate;
             break;
         case STMT_IF_ELSE:
         //IF MK_LPAREN test MK_RPAREN stmt ELSE stmt
             temp=deal_test(ptr->child);
+            genIfElseOpen(temp);
             if ((temp->type!=INT_)&&(temp->type!=FLOAT_)){
                 printf("error %d: condition not a basic type in if statement\n",ptr->linenumber);
                 result=ERROR_;
             }
             generate=deal_stmt(ptr->child->sibling);
             result=(result==ERROR_)?ERROR_:generate;
+            genIfElseBody();
             generate=deal_stmt(ptr->child->sibling->sibling);
+            genIfElseClose();
             result=(result==ERROR_)?ERROR_:generate;
             break;
         case STMT_FUNC_CALL:
@@ -1459,6 +1544,7 @@ var_ref* deal_relop_factor(AST_NODE* ptr){
     //expr rel_op expr
         op1=deal_expr(ptr->child);
         op2=deal_expr(ptr->child->sibling->sibling);
+
         if ((op1->type==ERROR_)||(op2->type==ERROR_))
             op1->type=ERROR_;
         else if((((op1->type!=INT_)&&op1->type!=FLOAT_))||((op2->type!=INT_)&&(op2->type!=FLOAT_))){
@@ -1466,7 +1552,7 @@ var_ref* deal_relop_factor(AST_NODE* ptr){
             op1->type= ERROR_;
         }
         else{
-            op1->type= INT_;
+            genConvert(op1, op2);
         }
         op1 -> reference = genRel(op1, op2, ptr -> child -> sibling -> semantic_value.op_type);
         return op1;
