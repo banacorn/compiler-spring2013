@@ -11,7 +11,7 @@ void init();
 
 typedef struct List {
     char * data;
-    int number;
+    int index;
     struct List * cons;
 } List;
 
@@ -140,7 +140,7 @@ toReg (Reference r) {
 // }
 
 void
-insertLiteralString (char * string) {
+insertLiteralString (char * string, int index) {
 
     if (!literalStringList) {
         literalStringList = malloc(sizeof(List));
@@ -149,7 +149,7 @@ insertLiteralString (char * string) {
     List * l = malloc(sizeof(List));
     l -> data = string;
     l -> cons = literalStringList;
-    l -> number = getStrLit().index;
+    l -> index = index;
     literalStringList = l;
 }
 
@@ -158,7 +158,7 @@ genLiteralString () {
     List * l = literalStringList;
     while (l) {
         if (l -> data) {
-            fprintf(fp, "    m%d: .asciiz %s\n", l -> number, l -> data);
+            fprintf(fp, "    m%d: .asciiz %s\n", l -> index, l -> data);
         }
         l = l -> cons;
     } 
@@ -382,7 +382,8 @@ genFloatConst (float value) {
 Reference
 genStringConst (char * value) {
     Reference r = getStrLit();
-    insertLiteralString(value);
+    insertLiteralString(value, r.index);
+    return r;
 }
 
 Reference
@@ -1568,9 +1569,8 @@ var_ref* deal_factor(AST_NODE* ptr){
 
                     break;
                 case STRINGC:
-                    op->type= STRING_;
+                    op -> type= STRING_;
                     op -> reference = genStringConst(ptr -> child -> semantic_value.const1 -> const_u.sc);
-
                     break;
                 default:
                     op->type= ERROR_;
