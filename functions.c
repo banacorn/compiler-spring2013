@@ -23,13 +23,22 @@ int localVariableOrder;
 int globalVariableInitialized;
 ST_TYPE LHTYPE;
 
-
+// .data
 List * literalStringList;
 
 // register
 int iRegisterIndex = 8;
 int fpRegisterIndex = 4;
 int literalStringIndex = 0;
+
+// currentFunction
+char * currentFunction;
+
+
+
+
+
+
 
 extern symtab * hash_table[TABLE_SIZE];
 extern int linenumber;
@@ -242,6 +251,7 @@ genLocalVariableDeclaration (char * name, ST_TYPE type) {
 void
 genReturn (var_ref * ref) {
     fprintf(fp, "    move $v0, $%d\n", ref -> reference.index);
+    fprintf(fp, "    j %s_end\n", currentFunction);
 };
 
 void
@@ -272,16 +282,18 @@ genInvocation (char * name) {
         (strcmp(name, "FREAD") == 0)) {
         switch (LHTYPE) {
             case INT_:
-                fprintf(fp, "    li $v0, 5\n");
                 reference = getIReg();
+                fprintf(fp, "    li $v0, 5\n");
+                fprintf(fp, "    syscall\n");
+                fprintf(fp, "    move $%d, $v0\n", reference.index);
                 break;
             case FLOAT_:
                 reference = getFPReg();
                 fprintf(fp, "    li $v0, 6\n");
+                fprintf(fp, "    syscall\n");
+                fprintf(fp, "    mov.s $f%d, $f0\n", reference.index);
                 break;
         }
-        fprintf(fp, "    syscall\n");
-        fprintf(fp, "    move $%d, $v0\n", reference.index);
         return reference;
     } else {
         // printf("jump to %s\n", name);
@@ -294,6 +306,8 @@ genInvocation (char * name) {
 
 void
 genPrologue (char * name) {
+
+    currentFunction = name;
 
     fprintf(fp, ".text\n");
     if (strcmp(name, "main") == 0)
@@ -346,6 +360,8 @@ genEpilogue (char * name) {
     fprintf(fp, ".data\n");
     fprintf(fp, "    %s_framesize: .word %d\n", name, 32 + localVariableOrder * 4);
     genLiteralString();
+
+    currentFunction = NULL;
 }
 
 
@@ -521,6 +537,7 @@ genAssignment (char * leftName, Reference rightReference) {
         tab -> reference = new;       
     } else if (tab -> type == FLOAT_ && rightReference.type == FPReg) {
         fprintf(fp, "    s.s $f%d, %d($fp)\n", rightReference.index, offset);
+        tab -> reference = rightReference;
     } else if (tab -> type == FLOAT_ && rightReference.type == IReg) {
         new = getFPReg();
         fprintf(fp, "    mtc1 $%d, $f%d\n", rightReference.index, new.index);
@@ -835,7 +852,6 @@ ST_TYPE deal_stmt(AST_NODE * ptr){
             var_ref * right = deal_relop_expr(ptr -> child -> sibling);
             genAssignment(left -> name, right -> reference);
 
-
             result= stmt_assign_ex(left, right, ptr->linenumber);
             break;
         case STMT_IF:
@@ -888,6 +904,7 @@ ST_TYPE deal_stmt(AST_NODE * ptr){
             }
             else {
                 temp=check_function(ptr->child, ptr->child->sibling);
+                genInvocation(ptr -> child -> semantic_value.lexeme);
                 result=(temp->type==ERROR_)?ERROR_:ZERO_;
             }
             break;
@@ -1600,6 +1617,7 @@ var_ref* deal_factor(AST_NODE* ptr){
         //ID MK_LPAREN relop_expr_list MK_RPAREN
             op= check_function(ptr->child,ptr->child->sibling);
             op -> reference = genInvocation(ptr -> child -> semantic_value.lexeme);
+            op -> type = (op -> reference.type == IReg) ? INT_ : FLOAT_;
             break;
         case F_ID_MINUS:
         //OP_MINUS ID MK_LPAREN relop_expr_list MK_RPAREN
