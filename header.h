@@ -40,7 +40,7 @@ typedef enum { IReg, FPReg, StrLit } ReferenceType;
 typedef struct{
     ReferenceType type;
     int index;
-} reference;   
+} Reference;   
 
 
 
@@ -145,7 +145,7 @@ struct symtab{
     int line;
     int offset;
     int number;
-    reference reference;
+    Reference reference;
 };
 typedef struct symtab symtab;
 
@@ -156,7 +156,7 @@ typedef struct{
         char *type_name;
         Type_arr *arr_info; 
     }var_ref_u;
-    reference reference;
+    Reference reference;
 }var_ref;   
 
 /*

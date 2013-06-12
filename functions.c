@@ -72,17 +72,17 @@ void VerifyMainCall(){
    printf("Warning: no valid Main function \n");
 }
 
-reference
+Reference
 getStrLit () {
-    reference r;
+    Reference r;
     r.index = literalStringIndex++;
     r.type = StrLit;
     return r;
 }
 
-reference 
+Reference 
 getIReg () {
-    reference r;
+    Reference r;
     r.type = IReg;
     r.index = iRegisterIndex;
     iRegisterIndex++;
@@ -92,9 +92,9 @@ getIReg () {
 }
 
 
-reference 
+Reference 
 getFPReg () {
-    reference r;
+    Reference r;
     r.type = FPReg;
     r.index = fpRegisterIndex;
     fpRegisterIndex += 2;
@@ -103,6 +103,22 @@ getFPReg () {
     if (fpRegisterIndex == 20)
         fpRegisterIndex = 4;
     return r;
+}
+
+char *
+toReg (Reference r) {
+    char * str = malloc(sizeof(char) * 20);
+    switch (r.type) {
+        case IReg:
+            sprintf(str, "$%d", r.index);
+            return str;
+        case FPReg:
+            sprintf(str, "$f%d", r.index);
+            return str;
+        case StrLit:
+            sprintf(str, "m%d", r.index);
+            return str;
+    }
 }
 
 
@@ -237,6 +253,7 @@ genWrite (var_ref * ref) {
             break;
         case FLOAT_:
             fprintf(fp, "    li $v0, 2\n");
+            fprintf(fp, "    mov.s $f12, $f%d\n", ref -> reference.index);
             break;
         case STRING_:
             fprintf(fp, "    li $v0, 4\n");
@@ -246,9 +263,9 @@ genWrite (var_ref * ref) {
     fprintf(fp, "    syscall\n");
 }
 
-reference
+Reference
 genInvocation (char * name) {
-    reference reference;
+    Reference reference;
     if ((strcmp(name, "fread") == 0)|| 
         (strcmp(name, "read") == 0) ||
         (strcmp(name, "READ") == 0) ||
@@ -332,34 +349,54 @@ genEpilogue (char * name) {
 }
 
 
-reference
+Reference
 genIntConst (int value) {
-    reference r = getIReg();
+    Reference r = getIReg();
     fprintf(fp, "    li $%d, %d\n", r.index, value);
     return r;
 }
 
-reference
+Reference
 genFloatConst (float value) {
-    // ref -> f = getFRegister();
-    // fprintf(fp, "    li $%d, %f\n", ref -> f, value);
-
+    Reference r = getFPReg();
+    fprintf(fp, "    li.s $f%d, %f\n", r.index, value);
+    return r;
 }
 
-reference
+Reference
 genStringConst (char * value) {
-    reference r = getStrLit();
+    Reference r = getStrLit();
     insertLiteralString(value);
 }
 
-reference
+Reference
 genIDConst (var_ref * ref) {
     return lookup(ref -> name) -> reference;
 }
 
-reference
+void 
+genConvert (var_ref * a, var_ref * b) {
+    Reference new, temp;
+    if (a -> type == FLOAT_ && b -> type == INT_) {
+        b -> type = FLOAT_;
+        temp = getFPReg();
+        new = getFPReg();
+        fprintf(fp, "    mtc1 $%d, $f%d\n", b -> reference.index, temp.index);
+        fprintf(fp, "    cvt.s.w $f%d, $f%d\n", new.index, temp.index);
+        b -> reference = new;
+    } else if (a -> type == INT_ && b -> type == FLOAT_) {
+        a -> type = FLOAT_;
+        temp = getFPReg();
+        new = getFPReg();
+        fprintf(fp, "    mtc1 $%d, $f%d\n", a -> reference.index, temp.index);
+        fprintf(fp, "    cvt.s.w $f%d, $f%d\n", new.index, temp.index);
+        a -> reference = new;
+    }
+}
+
+Reference
 genRel (var_ref * a, var_ref * b, OP_TYPE_PROP type) {
-    reference r = getIReg();
+    Reference r = getIReg();
     switch (type) {
         case OPT_EQ:
             fprintf(fp, "    seq $%d, $%d, $%d\n", r.index, a -> reference.index, b -> reference.index);
@@ -384,66 +421,113 @@ genRel (var_ref * a, var_ref * b, OP_TYPE_PROP type) {
 }
 
 
-reference
+Reference
 genOr (var_ref * a, var_ref * b) {
-    reference reference = getIReg();
+    Reference reference = getIReg();
     fprintf(fp, "    or $%d, $%d, $%d\n", reference.index, a -> reference.index, b -> reference.index);
     return reference;
 }
-reference
+Reference
 genAnd (var_ref * a, var_ref * b) {
-    reference reference = getIReg();
+    Reference reference = getIReg();
     fprintf(fp, "    and $%d, $%d, $%d\n", reference.index, a -> reference.index, b -> reference.index);
     return reference;
 }
 
-reference
+Reference
 genNeg (var_ref * a) {
-    reference reference = getIReg();
+    Reference reference = getIReg();
     fprintf(fp, "    neg $%d, $%d\n", reference.index, a -> reference.index);
     return reference;
 }
 
-reference
+Reference
 genNot (var_ref * a) {
-    reference reference = getIReg();
+    Reference reference = getIReg();
     fprintf(fp, "    not $%d, $%d\n", reference.index, a -> reference.index);
     return reference;
 }
 
-reference
+Reference
 genMul (var_ref * a, var_ref * b) {
-    reference reference = getIReg();
-    fprintf(fp, "    mul $%d, $%d, $%d\n", reference.index, a -> reference.index, b -> reference.index);
+    Reference reference;
+    if (a -> type == INT_) {
+        reference = getIReg();
+        fprintf(fp, "    mul $%d, $%d, $%d\n", reference.index, a -> reference.index, b -> reference.index);
+        
+    } else if (a -> type == FLOAT_) {
+        reference = getFPReg();
+        fprintf(fp, "    mul.s $f%d, $f%d, $f%d\n", reference.index, a -> reference.index, b -> reference.index);
+    }
     return reference;
 }
-reference
+
+Reference
 genDiv (var_ref * a, var_ref * b) {
-    reference reference = getIReg();
-    fprintf(fp, "    div $%d, $%d, $%d\n", reference.index, a -> reference.index, b -> reference.index);
+    Reference reference;
+    if (a -> type == INT_) {
+        reference = getIReg();
+        fprintf(fp, "    div $%d, $%d, $%d\n", reference.index, a -> reference.index, b -> reference.index);
+        
+    } else if (a -> type == FLOAT_) {
+        reference = getFPReg();
+        fprintf(fp, "    div.s $f%d, $f%d, $f%d\n", reference.index, a -> reference.index, b -> reference.index);
+    }
     return reference;
 }
-reference
+Reference
 genAdd (var_ref * a, var_ref * b) {
-    reference reference = getIReg();
-    fprintf(fp, "    add $%d, $%d, $%d\n", reference.index, a -> reference.index, b -> reference.index);
+    Reference reference;
+    if (a -> type == INT_) {
+        reference = getIReg();
+        fprintf(fp, "    add $%d, $%d, $%d\n", reference.index, a -> reference.index, b -> reference.index);
+        
+    } else if (a -> type == FLOAT_) {
+        reference = getFPReg();
+        fprintf(fp, "    add.s $f%d, $f%d, $f%d\n", reference.index, a -> reference.index, b -> reference.index);
+    }
     return reference;
 }
-reference
+
+Reference
 genSub (var_ref * a, var_ref * b) {
-    reference reference = getIReg();
-    fprintf(fp, "    sub $%d, $%d, $%d\n", reference.index, a -> reference.index, b -> reference.index);
+    Reference reference;
+    if (a -> type == INT_) {
+        reference = getIReg();
+        fprintf(fp, "    sub $%d, $%d, $%d\n", reference.index, a -> reference.index, b -> reference.index);
+        
+    } else if (a -> type == FLOAT_) {
+        reference = getFPReg();
+        fprintf(fp, "    sub.s $f%d, $f%d, $f%d\n", reference.index, a -> reference.index, b -> reference.index);
+    }
     return reference;
 }
 
 
 void
-genAssignment (char * name, reference rhr) {
-    symtab * tab = lookup(name);
+genAssignment (char * leftName, Reference rightReference) {
+    symtab * tab = lookup(leftName);
     int offset = tab -> offset;
-    tab -> reference = rhr;
-    fprintf(fp, "    sw $%d, %d($fp)\n", rhr.index, offset);
 
+
+    Reference new;
+    if (tab -> type == INT_ && rightReference.type == IReg) {
+        fprintf(fp, "    sw $%d, %d($fp)\n", rightReference.index, offset);
+        tab -> reference = rightReference;
+    } else if (tab -> type == INT_ && rightReference.type == FPReg) {
+        new = getIReg();
+        fprintf(fp, "    cvt.w.s $f%d, $f%d\n", rightReference.index, rightReference.index);
+        fprintf(fp, "    mfc1 $%d, $f%d\n", new.index, rightReference.index);
+        tab -> reference = new;       
+    } else if (tab -> type == FLOAT_ && rightReference.type == FPReg) {
+        fprintf(fp, "    s.s $f%d, %d($fp)\n", rightReference.index, offset);
+    } else if (tab -> type == FLOAT_ && rightReference.type == IReg) {
+        new = getFPReg();
+        fprintf(fp, "    mtc1 $%d, $f%d\n", rightReference.index, new.index);
+        fprintf(fp, "    cvt.s.w $f%d, $f%d\n", new.index, new.index);
+        tab -> reference = new;       
+        
+    }
 }
 
 // void
@@ -749,7 +833,6 @@ ST_TYPE deal_stmt(AST_NODE * ptr){
             var_ref * left = deal_var_ref(ptr -> child);
             LHTYPE = left -> type;
             var_ref * right = deal_relop_expr(ptr -> child -> sibling);
-
             genAssignment(left -> name, right -> reference);
 
 
@@ -1378,13 +1461,12 @@ var_ref* deal_expr(AST_NODE* ptr){
             op1->type= ERROR_;
         }
         else{
-            op1->type= (op1->type==FLOAT_||op2->type==FLOAT_)?FLOAT_:INT_;
+            genConvert(op1, op2);
         }
         if (ptr -> child -> sibling -> semantic_value.op_type == OPT_ADD)
             op1 -> reference = genAdd(op1, op2);
         else if (ptr -> child -> sibling -> semantic_value.op_type == OPT_SUB)
             op1 -> reference = genSub(op1, op2);
-        
         return op1;
     }
 }
@@ -1411,10 +1493,9 @@ var_ref* deal_term(AST_NODE* ptr){
             op1->type= ERROR_;
         }
         else{
-            op1->type= (op1->type==FLOAT_||op2->type==FLOAT_)?FLOAT_:INT_;
+            genConvert(op1, op2);
         }
-        // printf("%d\n", ptr->child->sibling->semantic_value.op_type);
-        // printf("%d\n", OPT_MUL);
+
         if (ptr -> child -> sibling -> semantic_value.op_type == OPT_MUL)
             op1 -> reference = genMul(op1, op2);
         if (ptr -> child -> sibling -> semantic_value.op_type == OPT_DIV)

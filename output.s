@@ -1,5 +1,5 @@
 .data
-    a:		.word 0
+    a:		.float 0.0
 .text
 main:
     sw $ra, 0($sp)
@@ -18,11 +18,15 @@ main:
     sw $15, 4($sp)
 main_begin:
     li $8, 4
-    li $9, 3
-    add $10, $8, $9
-    sw $10, 0($fp)
-    li $v0, 1
-    move $a0, $10
+    sw $8, -4($fp)
+    li $9, 2
+    li $10, 4
+    mul $11, $9, $10
+    add $12, $11, $8
+    mtc1 $12, $f4
+    cvt.s.w $f4, $f4
+    li $v0, 2
+    mov.s $f12, $f4
     syscall
 main_end:
 main_epilogue:
@@ -40,4 +44,4 @@ main_epilogue:
     li $v0, 10
     syscall
 .data
-    main_framesize: .word 32
+    main_framesize: .word 36

@@ -1,7 +1,10 @@
-int a;
+float a;
 
 void main () {
-    a = 4 + 3;
+    int b;
+    b = 4;
+
+    a = 2 * 4 + b;
     write(a);
     return;
 }
