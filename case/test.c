@@ -2,9 +2,15 @@ float a;
 
 void main () {
 
-    write("fuck");
-    write("you");
+    int a;
 
+    a = read();
+
+    while (a) {
+        write("!!");
+        write("\n");
+        a = a - 1;
+    }
 
     return;
 }

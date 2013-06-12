@@ -17,12 +17,26 @@ main:
     sw $14, 8($sp)
     sw $15, 4($sp)
 main_begin:
+    li $v0, 5
+    syscall
+    move $8, $v0
+    sw $8, -4($fp)
+while_0:
+    lw $9, -4($fp)
+    move $t0, $9
+    beqz $t0, while_0_exit
     li $v0, 4
     la $a0, m0
     syscall
     li $v0, 4
     la $a0, m1
     syscall
+    lw $10, -4($fp)
+    li $11, 1
+    sub $12, $10, $11
+    sw $12, -4($fp)
+    j while_0
+while_0_exit:
 main_end:
 main_epilogue:
     lw $8, 32($sp)
@@ -39,6 +53,6 @@ main_epilogue:
     li $v0, 10
     syscall
 .data
-    main_framesize: .word 32
-    m1: .asciiz "you"
-    m0: .asciiz "fuck"
+    main_framesize: .word 36
+    m1: .asciiz "\n"
+    m0: .asciiz "!!"

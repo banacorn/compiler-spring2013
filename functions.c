@@ -34,6 +34,8 @@ int literalStringIndex = 0;
 // currentFunction
 char * currentFunction;
 
+// control statement labels
+int whileIndex = 0;
 
 
 
@@ -388,25 +390,26 @@ genStringConst (char * value) {
 
 Reference
 genIDConst (var_ref * ref) {
-    return lookup(ref -> name) -> reference;
+    Reference reference;
+    reference = ref -> type == INT_ ? getIReg() : getFPReg();
+    fprintf(fp, "    lw $%d, %d($fp)\n", reference.index, lookup(ref -> name) -> offset);
+    return reference;
 }
 
 void 
 genConvert (var_ref * a, var_ref * b) {
-    Reference new, temp;
+    Reference new;
     if (a -> type == FLOAT_ && b -> type == INT_) {
         b -> type = FLOAT_;
-        temp = getFPReg();
         new = getFPReg();
-        fprintf(fp, "    mtc1 $%d, $f%d\n", b -> reference.index, temp.index);
-        fprintf(fp, "    cvt.s.w $f%d, $f%d\n", new.index, temp.index);
+        fprintf(fp, "    mtc1 $%d, $f%d\n", b -> reference.index, new.index);
+        fprintf(fp, "    cvt.s.w $f%d, $f%d\n", new.index, new.index);
         b -> reference = new;
     } else if (a -> type == INT_ && b -> type == FLOAT_) {
         a -> type = FLOAT_;
-        temp = getFPReg();
         new = getFPReg();
-        fprintf(fp, "    mtc1 $%d, $f%d\n", a -> reference.index, temp.index);
-        fprintf(fp, "    cvt.s.w $f%d, $f%d\n", new.index, temp.index);
+        fprintf(fp, "    mtc1 $%d, $f%d\n", a -> reference.index, new.index);
+        fprintf(fp, "    cvt.s.w $f%d, $f%d\n", new.index, new.index);
         a -> reference = new;
     }
 }
@@ -548,19 +551,29 @@ genAssignment (char * leftName, Reference rightReference) {
     }
 }
 
-// void
-// genGlobalFuncitonDeclratation (char * name, ST_TYPE type) {
-   
-//     genPrologue(name);
+
+void
+genWhileHead (var_ref * test) {
+    fprintf(fp, "while_%d:\n", whileIndex);
     
-//     // block
-//     fprintf(fp, "%s_begin:\n", name);
+}
+
+void
+genWhileOpen (var_ref * test) {
+    Reference reference = test -> reference;
+    fprintf(fp, "    move $t0, $%d\n", reference.index);
+    fprintf(fp, "    beqz $t0, while_%d_exit\n", whileIndex);
+}
+
+void 
+genWhileClose () {
+    fprintf(fp, "    j while_%d\n", whileIndex);
+    fprintf(fp, "while_%d_exit:\n", whileIndex);
+    whileIndex++;
+
+}
 
 
-//     genEpilogue(name);
-
-
-// }
 
 
 void
@@ -804,13 +817,16 @@ ST_TYPE deal_stmt(AST_NODE * ptr){
             break;
         case STMT_WHILE:
         //WHILE MK_LPAREN test MK_RPAREN stmt
+            genWhileHead(temp);
             temp=deal_test(ptr->child);
             if ((temp->type!=INT_)&&(temp->type!=FLOAT_)){
                 printf("error %d: condition not a basic type in while statement\n",ptr->linenumber);
                 result=ERROR_;
             }
+            genWhileOpen(temp);
             generate=deal_stmt(ptr->child->sibling);
             result=(result==ERROR_)?ERROR_:generate;
+            genWhileClose();
             break;
         case STMT_FOR:
         //FOR MK_LPAREN assign_expr_list MK_SEMICOLON relop_expr_list MK_SEMICOLON assign_expr_list MK_RPAREN stmt
