@@ -241,10 +241,18 @@ void
 genGlobalVariableDeclaration (char * name, ST_TYPE type) {
     switch (type) {
         case INT_:
+            if (tempInt == 0 && tempFloat != 0) {
+                tempInt = tempFloat;
+                tempFloat = 0;                
+            }
             fprintf(fp, "    %s:\t\t.word %d\n", name, tempInt);
             tempInt = 0;
             break;
         case FLOAT_:
+            if (tempInt != 0 && tempFloat == 0) {
+                tempFloat = tempInt;
+                tempInt = 0;                
+            }
             fprintf(fp, "    %s:\t\t.float %f\n", name, tempFloat);
             tempFloat = 0.0;
             break;
@@ -568,9 +576,19 @@ genAnd (var_ref * a, var_ref * b) {
 
 Reference
 genNeg (var_ref * a) {
-    Reference reference = getIReg();
-    fprintf(fp, "    # negation\n");        
-    fprintf(fp, "    neg $%d, $%d\n", reference.index, a -> reference.index);
+    Reference reference;
+    switch (a -> type) {
+        case INT_:
+            reference = getIReg();
+            fprintf(fp, "    # Int negation\n");        
+            fprintf(fp, "    neg $%d, $%d\n", reference.index, a -> reference.index);
+            break;
+        case FLOAT_:
+            reference = getFPReg();
+            fprintf(fp, "    # Float negation\n");        
+            fprintf(fp, "    neg.s $f%d, $f%d\n", reference.index, a -> reference.index);
+            break;
+    }
     return reference;
 }
 
@@ -1768,6 +1786,7 @@ var_ref* deal_factor(AST_NODE* ptr){
             op->name=NULL;
             switch (ptr->child->semantic_value.const1->const_type){
                 case INTEGERC:
+                    printf("INT %d\n", ptr -> child -> semantic_value.const1 -> const_u.intval);
                     op -> type = INT_;
                     if (scope == GLOBAL) {
                         tempInt = ptr -> child -> semantic_value.const1 -> const_u.intval;
@@ -1777,6 +1796,8 @@ var_ref* deal_factor(AST_NODE* ptr){
                     break;
                 case FLOATC:
                     op -> type = FLOAT_;
+                    printf("FLOAT %f\n", ptr -> child -> semantic_value.const1 -> const_u.fval);
+
                     if (scope == GLOBAL) {
                         tempFloat = ptr -> child -> semantic_value.const1 -> const_u.fval;
                     } else {
@@ -1801,9 +1822,29 @@ var_ref* deal_factor(AST_NODE* ptr){
                 op->type= ERROR_;
             }
             else {
-                op->type= (ptr->child->semantic_value.const1->const_type==INTEGERC)?INT_:FLOAT_; 
-                op -> reference = genIntConst(ptr -> child -> semantic_value.const1 -> const_u.intval);
-                op -> reference = genNeg(op);
+                op -> type = (ptr->child->semantic_value.const1->const_type==INTEGERC)?INT_:FLOAT_; 
+                // printf("- %f\n", tempFloat);
+                switch (op -> type){
+                    case INT_:
+                        if (scope == GLOBAL) {
+                            tempInt = -(ptr -> child -> semantic_value.const1 -> const_u.intval);
+                        } else {
+                            op -> reference = genIntConst(ptr -> child -> semantic_value.const1 -> const_u.intval);
+                            op -> reference = genNeg(op);
+                        }
+                        break;
+                    case FLOAT_:
+                        if (scope == GLOBAL) {
+                            tempFloat = -(ptr -> child -> semantic_value.const1 -> const_u.fval);
+                        } else {
+                            op -> reference = genFloatConst(ptr -> child -> semantic_value.const1 -> const_u.fval);
+                            op -> reference = genNeg(op);
+                        }
+
+                        break;
+                    default:
+                        op->type= ERROR_;
+                }
             }
             break;
         case F_CONST_NOT:
