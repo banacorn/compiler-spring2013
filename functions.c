@@ -245,7 +245,7 @@ genGlobalVariableDeclaration (char * name, ST_TYPE type) {
                 tempInt = tempFloat;
                 tempFloat = 0;                
             }
-            fprintf(fp, "    %s:\t\t.word %d\n", name, tempInt);
+            fprintf(fp, "    var_%s:\t\t.word %d\n", name, tempInt);
             tempInt = 0;
             break;
         case FLOAT_:
@@ -253,7 +253,7 @@ genGlobalVariableDeclaration (char * name, ST_TYPE type) {
                 tempFloat = tempInt;
                 tempInt = 0;                
             }
-            fprintf(fp, "    %s:\t\t.float %f\n", name, tempFloat);
+            fprintf(fp, "    var_%s:\t\t.float %f\n", name, tempFloat);
             tempFloat = 0.0;
             break;
         default:
@@ -464,14 +464,14 @@ genIDConst (var_ref * ref) {
     if (ref -> type == INT_) {
         reference = getIReg();
         if (global)
-            fprintf(fp, "    lw $%d, %s\n", reference.index, ref -> name);
+            fprintf(fp, "    lw $%d, var_%s\n", reference.index, ref -> name);
         else
             fprintf(fp, "    lw $%d, %d($fp)\n", reference.index, lookup(ref -> name) -> offset);
 
     } else if (ref -> type == FLOAT_) {
         reference = getFPReg();
         if (global)
-            fprintf(fp, "    l.s $f%d, %s\n", reference.index, ref -> name);
+            fprintf(fp, "    l.s $f%d, var_%s\n", reference.index, ref -> name);
         else    
             fprintf(fp, "    l.s $f%d, %d($fp)\n", reference.index, lookup(ref -> name) -> offset);
 
@@ -670,7 +670,7 @@ genAssignment (char * leftName, Reference rightReference) {
     Reference new;
     if (tab -> type == INT_ && rightReference.type == IReg) {
         if (global)
-            fprintf(fp, "    sw $%d, %s\n", rightReference.index, leftName);
+            fprintf(fp, "    sw $%d, var_%s\n", rightReference.index, leftName);
         else
             fprintf(fp, "    sw $%d, %d($fp)\n", rightReference.index, offset);
         tab -> reference = rightReference;
@@ -679,13 +679,13 @@ genAssignment (char * leftName, Reference rightReference) {
         fprintf(fp, "    cvt.w.s $f%d, $f%d\n", rightReference.index, rightReference.index);
         fprintf(fp, "    mfc1 $%d, $f%d\n", new.index, rightReference.index);
         if (global)
-            fprintf(fp, "    sw $%d, %s\n", new.index, leftName);
+            fprintf(fp, "    sw $%d, var_%s\n", new.index, leftName);
         else
             fprintf(fp, "    sw $%d, %d($fp)\n", new.index, offset);
         tab -> reference = new;
     } else if (tab -> type == FLOAT_ && rightReference.type == FPReg) {
         if (global)
-            fprintf(fp, "    s.s $f%d, %s\n", rightReference.index, leftName);
+            fprintf(fp, "    s.s $f%d, var_%s\n", rightReference.index, leftName);
         else
             fprintf(fp, "    s.s $f%d, %d($fp)\n", rightReference.index, offset);
         tab -> reference = rightReference;
@@ -694,7 +694,7 @@ genAssignment (char * leftName, Reference rightReference) {
         fprintf(fp, "    mtc1 $%d, $f%d\n", rightReference.index, new.index);
         fprintf(fp, "    cvt.s.w $f%d, $f%d\n", new.index, new.index);
         if (global)
-            fprintf(fp, "    s.s $f%d, %s\n", new.index, leftName);
+            fprintf(fp, "    s.s $f%d, var_%s\n", new.index, leftName);
         else
             fprintf(fp, "    s.s $f%d, %d($fp)\n", new.index, offset);
         tab -> reference = new;       
@@ -920,7 +920,7 @@ ST_TYPE deal_func_decl(AST_NODE *ptr){
                     
                 }
                 else{
-                    printf("error %d: redeclaration of symbol as function, declared previously as %s on line %d\n",ptr->linenumber,printtype(PST->type),PST->line);
+                    printf("error %d: redeclaration of symbol as function, declared previously as %s sibling on line %d\n",ptr->linenumber,printtype(PST->type),PST->line);
                     result=ERROR_;
                 }
                 result=deal_block(ptr->child->sibling->sibling);
@@ -1786,7 +1786,7 @@ var_ref* deal_factor(AST_NODE* ptr){
             op->name=NULL;
             switch (ptr->child->semantic_value.const1->const_type){
                 case INTEGERC:
-                    printf("INT %d\n", ptr -> child -> semantic_value.const1 -> const_u.intval);
+                    // printf("INT %d\n", ptr -> child -> semantic_value.const1 -> const_u.intval);
                     op -> type = INT_;
                     if (scope == GLOBAL) {
                         tempInt = ptr -> child -> semantic_value.const1 -> const_u.intval;
@@ -1796,7 +1796,7 @@ var_ref* deal_factor(AST_NODE* ptr){
                     break;
                 case FLOATC:
                     op -> type = FLOAT_;
-                    printf("FLOAT %f\n", ptr -> child -> semantic_value.const1 -> const_u.fval);
+                    // printf("FLOAT %f\n", ptr -> child -> semantic_value.const1 -> const_u.fval);
 
                     if (scope == GLOBAL) {
                         tempFloat = ptr -> child -> semantic_value.const1 -> const_u.fval;

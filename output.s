@@ -1,12 +1,5 @@
 .data
-    a:		.word -4
-    bb:		.word 4
-    c:		.word -4
-    d:		.word 4
-    e:		.float -1.000000
-    f:		.float 1.000000
-    g:		.float -1.500000
-    h:		.float 1.500000
+    var_b:		.word 4
 .text
 main:
     # prologue
@@ -32,52 +25,10 @@ main:
     sw $15, 4($sp)
 main_begin:
     # variable reference
-    lw $8, a
+    lw $8, var_b
     # write
     li $v0, 1
     move $a0, $8
-    syscall
-    # variable reference
-    lw $9, bb
-    # write
-    li $v0, 1
-    move $a0, $9
-    syscall
-    # variable reference
-    lw $10, c
-    # write
-    li $v0, 1
-    move $a0, $10
-    syscall
-    # variable reference
-    lw $11, d
-    # write
-    li $v0, 1
-    move $a0, $11
-    syscall
-    # variable reference
-    l.s $f4, e
-    # write
-    li $v0, 2
-    mov.s $f12, $f4
-    syscall
-    # variable reference
-    l.s $f6, f
-    # write
-    li $v0, 2
-    mov.s $f12, $f6
-    syscall
-    # variable reference
-    l.s $f8, g
-    # write
-    li $v0, 2
-    mov.s $f12, $f8
-    syscall
-    # variable reference
-    l.s $f10, h
-    # write
-    li $v0, 2
-    mov.s $f12, $f10
     syscall
 main_end:
     # eiplogue
