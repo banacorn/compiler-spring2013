@@ -1,6 +1,4 @@
 .data
-    a:		.word 5
-    bbbb:		.float 5.500000
 .text
 main:
     # prologue
@@ -25,22 +23,30 @@ main:
     sw $14, 8($sp)
     sw $15, 4($sp)
 main_begin:
+    # Int const
+    li $8, 5
+    # Int const initialization
+    sw $8, -8($fp)
+    # Float const
+    li.s $f4, 5.500000
+    # Float const initialization
+    s.s $f4, -16($fp)
     # variable reference
-    lw $8, a
+    lw $9, -8($fp)
     # write
     li $v0, 1
-    move $a0, $8
+    move $a0, $9
     syscall
     # variable reference
-    l.s $f4, bbbb
+    l.s $f6, -16($fp)
     # write
     li $v0, 2
-    mov.s $f12, $f4
+    mov.s $f12, $f6
     syscall
     # Int const
-    li $9, 0
+    li $10, 0
     # return
-    move $v0, $9
+    move $v0, $10
     j main_end
 main_end:
     # eiplogue
@@ -65,5 +71,5 @@ main_epilogue:
     li $v0, 10
     syscall
 .data
-    main_framesize: .word 56
+    main_framesize: .word 72
 .data

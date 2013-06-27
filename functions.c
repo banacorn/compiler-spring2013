@@ -239,8 +239,6 @@ functionFinish () {
 
 void
 genGlobalVariableDeclaration (char * name, ST_TYPE type) {
-
-    // int i;
     switch (type) {
         case INT_:
             fprintf(fp, "    %s:\t\t.word %d\n", name, tempInt);
@@ -249,6 +247,23 @@ genGlobalVariableDeclaration (char * name, ST_TYPE type) {
         case FLOAT_:
             fprintf(fp, "    %s:\t\t.float %f\n", name, tempFloat);
             tempFloat = 0.0;
+            break;
+        default:
+            printf("??? %s\n", name);
+    }
+}
+
+void
+genLocalVariableInitialization (char * name, ST_TYPE type, int registerOffset) {
+    int frameOffset = lookup(name) -> offset;
+    switch (type) {
+        case INT_:
+            fprintf(fp, "    # Int const initialization\n");
+            fprintf(fp, "    sw $%d, %d($fp)\n", registerOffset, frameOffset);
+            break;
+        case FLOAT_:
+            fprintf(fp, "    # Float const initialization\n");
+            fprintf(fp, "    s.s $f%d, %d($fp)\n", registerOffset, frameOffset);
             break;
         default:
             printf("??? %s\n", name);
@@ -1475,11 +1490,10 @@ ST_TYPE deal_var_decl(AST_NODE *ptr){
                         else{
                             temp->child->child->symptr=insert(temp->child->child->semantic_value.lexeme,ptr->child->semantic_value.type,NULL,0, ptr->linenumber);
                             if (scope == 0) { // global
-                                // printf("%s\n", vt -> type);
                                 genGlobalVariableDeclaration(temp -> child -> child -> semantic_value.lexeme, ptr->child->semantic_value.type); 
-
                             } else {
                                 genLocalVariableDeclaration(temp -> child -> child -> semantic_value.lexeme, ptr->child->semantic_value.type); 
+                                genLocalVariableInitialization(temp -> child -> child -> semantic_value.lexeme, ptr->child->semantic_value.type, vt -> reference.index); 
                             }
                         }
                     }
