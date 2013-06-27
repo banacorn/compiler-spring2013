@@ -1,7 +1,8 @@
+int a = 5;
+float bbbb = 5.5;
 int main()
 {
-    int b;
-    b = 1.0 == 1;
-    write(b);
+    write(a);
+    write(bbbb);
     return 0;
 }

@@ -6,6 +6,7 @@
 
 #define TABLE_SIZE  1024
 #define OUTPUT "output.s"
+#define GLOBAL 0
 
 void init();
 
@@ -15,6 +16,8 @@ typedef struct List {
     struct List * cons;
 } List;
 
+int tempInt;
+float tempFloat;
 
 
 FILE * fp;
@@ -112,7 +115,7 @@ getFPReg () {
     r.type = FPReg;
     r.index = fpRegisterIndex;
     fpRegisterIndex += 2;
-    if (fpRegisterIndex == 10)
+    if (fpRegisterIndex == 12)
         fpRegisterIndex = 16;
     if (fpRegisterIndex == 20)
         fpRegisterIndex = 4;
@@ -207,6 +210,8 @@ void
 printTab (symtab * tab) {
     printf("------------------\n");
     printf("    name: %s\n", tab -> lexeme);
+    if (tab -> type == FUNC_)
+        printf("    return type: %d\n", tab -> symtab_u.st_func -> ret_type);
     printf("    scope: %d\n", tab -> scope);
     printf("    offset: %d\n", tab -> offset);
     printf("    register: %d\n", tab -> reference.index);
@@ -223,7 +228,6 @@ void init () {
 void
 functionStart () {
     fprintf(fp, ".data\n");
-    printf("[start]\n");
     localVariableOrder = 0;
     globalVariableInitialized = 0;
 
@@ -231,17 +235,20 @@ functionStart () {
 
 void
 functionFinish () {
-    printf("[finish]\n");
 }
 
 void
 genGlobalVariableDeclaration (char * name, ST_TYPE type) {
+
+    // int i;
     switch (type) {
         case INT_:
-            fprintf(fp, "    %s:\t\t.word 0\n", name);
+            fprintf(fp, "    %s:\t\t.word %d\n", name, tempInt);
+            tempInt = 0;
             break;
         case FLOAT_:
-            fprintf(fp, "    %s:\t\t.float 0.0\n", name);
+            fprintf(fp, "    %s:\t\t.float %f\n", name, tempFloat);
+            tempFloat = 0.0;
             break;
         default:
             printf("??? %s\n", name);
@@ -259,12 +266,18 @@ genLocalVariableDeclaration (char * name, ST_TYPE type) {
 
 void
 genReturn (var_ref * ref) {
-    fprintf(fp, "    move $v0, $%d\n", ref -> reference.index);
+    fprintf(fp, "    # return\n");        
+
+    if (ref -> type == INT_)
+        fprintf(fp, "    move $v0, $%d\n", ref -> reference.index);
+    else if (ref -> type == FLOAT_)
+        fprintf(fp, "    mov.s $f0, $f%d\n", ref -> reference.index);
     fprintf(fp, "    j %s_end\n", currentFunction);
 };
 
 void
 genWrite (var_ref * ref) {
+    fprintf(fp, "    # write\n");        
     switch (ref -> type) {
         case INT_:
             fprintf(fp, "    li $v0, 1\n");
@@ -289,6 +302,7 @@ genInvocation (char * name) {
         (strcmp(name, "read") == 0) ||
         (strcmp(name, "READ") == 0) ||
         (strcmp(name, "FREAD") == 0)) {
+        fprintf(fp, "    # read\n");
         switch (LHTYPE) {
             case INT_:
                 reference = getIReg();
@@ -306,10 +320,15 @@ genInvocation (char * name) {
         // printf("read type: %d\n", reference.type);
         return reference;
     } else {
-        // printf("jump to %s\n", name);
+        fprintf(fp, "    # function call\n");        
         fprintf(fp, "    jal %s_entry\n", name);
-        reference = getIReg();
-        fprintf(fp, "    move $%d, $v0\n", reference.index);
+        if (lookup(name) -> symtab_u.st_func -> ret_type == INT_) {
+            reference = getIReg();
+            fprintf(fp, "    move $%d, $v0\n", reference.index);
+        } else {
+            reference = getFPReg();
+            fprintf(fp, "    mov.s $f%d, $f0\n", reference.index);
+        }
         return reference;
     }
 }
@@ -326,12 +345,19 @@ genPrologue (char * name) {
         fprintf(fp, "%s_entry:\n", name);
 
     // prologue
+    fprintf(fp, "    # prologue\n");        
     fprintf(fp, "    sw $ra, 0($sp)\n");
     fprintf(fp, "    sw $fp, -4($sp)\n");
     fprintf(fp, "    add $fp, $sp, -4\n");
     fprintf(fp, "    add $sp, $sp, -8\n");
     fprintf(fp, "    lw $2, %s_framesize\n", name);
     fprintf(fp, "    sub $sp, $sp, $2\n");
+    fprintf(fp, "    s.s $f4, 56($sp)\n");   
+    fprintf(fp, "    s.s $f6, 52($sp)\n");   
+    fprintf(fp, "    s.s $f8, 48($sp)\n");   
+    fprintf(fp, "    s.s $f10, 44($sp)\n");   
+    fprintf(fp, "    s.s $f16, 40($sp)\n");   
+    fprintf(fp, "    s.s $f18, 36($sp)\n");   
     fprintf(fp, "    sw $8, 32($sp)\n");
     fprintf(fp, "    sw $9, 28($sp)\n");
     fprintf(fp, "    sw $10, 24($sp)\n");
@@ -339,14 +365,22 @@ genPrologue (char * name) {
     fprintf(fp, "    sw $12, 16($sp)\n");
     fprintf(fp, "    sw $13, 12($sp)\n");
     fprintf(fp, "    sw $14, 8($sp)\n");
-    fprintf(fp, "    sw $15, 4($sp)\n");   
+    fprintf(fp, "    sw $15, 4($sp)\n"); 
+
 }
 
 void
 genEpilogue (char * name) {
     // eiplogue
     fprintf(fp, "%s_end:\n", name);
+    fprintf(fp, "    # eiplogue\n");        
     fprintf(fp, "%s_epilogue:\n", name);
+    fprintf(fp, "    l.s $f4, 56($sp)\n");   
+    fprintf(fp, "    l.s $f6, 52($sp)\n");   
+    fprintf(fp, "    l.s $f8, 48($sp)\n");   
+    fprintf(fp, "    l.s $f10, 44($sp)\n");   
+    fprintf(fp, "    l.s $f16, 40($sp)\n");   
+    fprintf(fp, "    l.s $f18, 36($sp)\n");  
     fprintf(fp, "    lw $8, 32($sp)\n");
     fprintf(fp, "    lw $9, 28($sp)\n");
     fprintf(fp, "    lw $10, 24($sp)\n");
@@ -368,7 +402,7 @@ genEpilogue (char * name) {
 
     // misc data
     fprintf(fp, ".data\n");
-    fprintf(fp, "    %s_framesize: .word %d\n", name, 32 + localVariableOrder * 4);
+    fprintf(fp, "    %s_framesize: .word %d\n", name, 32 + 24 + localVariableOrder * 4);
 
     currentFunction = NULL;
 }
@@ -377,6 +411,7 @@ genEpilogue (char * name) {
 Reference
 genIntConst (int value) {
     Reference r = getIReg();
+    fprintf(fp, "    # Int const\n");        
     fprintf(fp, "    li $%d, %d\n", r.index, value);
     return r;
 }
@@ -384,6 +419,7 @@ genIntConst (int value) {
 Reference
 genFloatConst (float value) {
     Reference r = getFPReg();
+    fprintf(fp, "    # Float const\n");        
     fprintf(fp, "    li.s $f%d, %f\n", r.index, value);
     return r;
 }
@@ -391,6 +427,7 @@ genFloatConst (float value) {
 Reference
 genStringConst (char * value) {
     Reference r = getStrLit();
+    fprintf(fp, "    # string literal\n");        
     insertLiteralString(value, r.index);
     return r;
 }
@@ -398,6 +435,7 @@ genStringConst (char * value) {
 Reference
 genIDConst (var_ref * ref) {
     Reference reference;
+    fprintf(fp, "    # variable reference\n");        
     int offset = lookup(ref -> name) -> offset;
     int global = offset == 0;
     if (ref -> type == INT_) {
@@ -420,6 +458,7 @@ genIDConst (var_ref * ref) {
 
 void 
 genConvert (var_ref * a, var_ref * b) {
+    fprintf(fp, "    # type coersion Int => Float\n");        
     Reference new;
     if (a -> type == FLOAT_ && b -> type == INT_) {
         b -> type = FLOAT_;
@@ -439,6 +478,7 @@ genConvert (var_ref * a, var_ref * b) {
 Reference
 genRel (var_ref * a, var_ref * b, OP_TYPE_PROP type) {
     Reference r = getIReg();
+    fprintf(fp, "    # relational operator\n");        
 
     if (a -> type == INT_) {
         switch (type) {
@@ -499,12 +539,14 @@ genRel (var_ref * a, var_ref * b, OP_TYPE_PROP type) {
 Reference
 genOr (var_ref * a, var_ref * b) {
     Reference reference = getIReg();
+    fprintf(fp, "    # logical OR\n");        
     fprintf(fp, "    or $%d, $%d, $%d\n", reference.index, a -> reference.index, b -> reference.index);
     return reference;
 }
 Reference
 genAnd (var_ref * a, var_ref * b) {
     Reference reference = getIReg();
+    fprintf(fp, "    # logical AND\n");        
     fprintf(fp, "    and $%d, $%d, $%d\n", reference.index, a -> reference.index, b -> reference.index);
     return reference;
 }
@@ -512,6 +554,7 @@ genAnd (var_ref * a, var_ref * b) {
 Reference
 genNeg (var_ref * a) {
     Reference reference = getIReg();
+    fprintf(fp, "    # negation\n");        
     fprintf(fp, "    neg $%d, $%d\n", reference.index, a -> reference.index);
     return reference;
 }
@@ -519,12 +562,14 @@ genNeg (var_ref * a) {
 Reference
 genNot (var_ref * a) {
     Reference reference = getIReg();
+    fprintf(fp, "    # logical NOT\n");        
     fprintf(fp, "    not $%d, $%d\n", reference.index, a -> reference.index);
     return reference;
 }
 
 Reference
 genMul (var_ref * a, var_ref * b) {
+    fprintf(fp, "    # multiplication\n");        
     Reference reference;
     if (a -> type == INT_) {
         reference = getIReg();
@@ -539,6 +584,7 @@ genMul (var_ref * a, var_ref * b) {
 
 Reference
 genDiv (var_ref * a, var_ref * b) {
+    fprintf(fp, "    # division\n");        
     Reference reference;
     if (a -> type == INT_) {
         reference = getIReg();
@@ -552,6 +598,7 @@ genDiv (var_ref * a, var_ref * b) {
 }
 Reference
 genAdd (var_ref * a, var_ref * b) {
+    fprintf(fp, "    # addition\n");        
     Reference reference;
     if (a -> type == INT_) {
         reference = getIReg();
@@ -566,6 +613,7 @@ genAdd (var_ref * a, var_ref * b) {
 
 Reference
 genSub (var_ref * a, var_ref * b) {
+    fprintf(fp, "    # subtraction\n");        
     Reference reference;
     if (a -> type == INT_) {
         reference = getIReg();
@@ -581,6 +629,7 @@ genSub (var_ref * a, var_ref * b) {
 
 void
 genAssignment (char * leftName, Reference rightReference) {
+    fprintf(fp, "    # assignment\n");        
     symtab * tab = lookup(leftName);
     int offset = tab -> offset;
     int global = offset == 0;
@@ -623,6 +672,7 @@ genAssignment (char * leftName, Reference rightReference) {
 
 void
 genWhileHead () {
+    fprintf(fp, "    # while\n");        
     fprintf(fp, "while_%d:\n", whileIndex);
     
 }
@@ -644,9 +694,11 @@ genWhileClose () {
 
 void
 genIfOpen (var_ref * test) {
+    fprintf(fp, "    # if\n");        
     Reference reference = test -> reference;
     fprintf(fp, "    move $t0, $%d\n", reference.index);
     fprintf(fp, "    beqz $t0, if_%d_exit\n", ifIndex);
+    fprintf(fp, "    # then\n");        
 }
 
 void 
@@ -661,14 +713,17 @@ genIfClose () {
 
 void
 genIfElseOpen (var_ref * test) {
+    fprintf(fp, "    # if else\n");        
     Reference reference = test -> reference;
     fprintf(fp, "    move $t0, $%d\n", reference.index);
     fprintf(fp, "    beqz $t0, if_else_%d_else\n", ifElseIndex);
+    fprintf(fp, "    # then\n");        
 }
 
 void
 genIfElseBody () {
     fprintf(fp, "    j if_else_%d_exit\n", ifElseIndex);
+    fprintf(fp, "    # else\n");        
     fprintf(fp, "if_else_%d_else:\n", ifElseIndex);
 }
 
@@ -1419,6 +1474,13 @@ ST_TYPE deal_var_decl(AST_NODE *ptr){
                         }
                         else{
                             temp->child->child->symptr=insert(temp->child->child->semantic_value.lexeme,ptr->child->semantic_value.type,NULL,0, ptr->linenumber);
+                            if (scope == 0) { // global
+                                // printf("%s\n", vt -> type);
+                                genGlobalVariableDeclaration(temp -> child -> child -> semantic_value.lexeme, ptr->child->semantic_value.type); 
+
+                            } else {
+                                genLocalVariableDeclaration(temp -> child -> child -> semantic_value.lexeme, ptr->child->semantic_value.type); 
+                            }
                         }
                     }
                     break;
@@ -1692,12 +1754,20 @@ var_ref* deal_factor(AST_NODE* ptr){
             op->name=NULL;
             switch (ptr->child->semantic_value.const1->const_type){
                 case INTEGERC:
-                    op->type= INT_;
-                    op -> reference = genIntConst(ptr -> child -> semantic_value.const1 -> const_u.intval);
+                    op -> type = INT_;
+                    if (scope == GLOBAL) {
+                        tempInt = ptr -> child -> semantic_value.const1 -> const_u.intval;
+                    } else {
+                        op -> reference = genIntConst(ptr -> child -> semantic_value.const1 -> const_u.intval);
+                    }
                     break;
                 case FLOATC:
-                    op->type= FLOAT_;
-                    op -> reference = genFloatConst(ptr -> child -> semantic_value.const1 -> const_u.fval);
+                    op -> type = FLOAT_;
+                    if (scope == GLOBAL) {
+                        tempFloat = ptr -> child -> semantic_value.const1 -> const_u.fval;
+                    } else {
+                        op -> reference = genFloatConst(ptr -> child -> semantic_value.const1 -> const_u.fval);
+                    }
 
                     break;
                 case STRINGC:

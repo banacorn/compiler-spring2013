@@ -1,12 +1,21 @@
 .data
+    a:		.word 5
+    bbbb:		.float 5.500000
 .text
 main:
+    # prologue
     sw $ra, 0($sp)
     sw $fp, -4($sp)
     add $fp, $sp, -4
     add $sp, $sp, -8
     lw $2, main_framesize
     sub $sp, $sp, $2
+    s.s $f4, 56($sp)
+    s.s $f6, 52($sp)
+    s.s $f8, 48($sp)
+    s.s $f10, 44($sp)
+    s.s $f16, 40($sp)
+    s.s $f18, 36($sp)
     sw $8, 32($sp)
     sw $9, 28($sp)
     sw $10, 24($sp)
@@ -16,27 +25,32 @@ main:
     sw $14, 8($sp)
     sw $15, 4($sp)
 main_begin:
-    li.s $f4, 1.000000
-    li $8, 1
-    mtc1 $8, $f6
-    cvt.s.w $f6, $f6
-    c.eq.s $f4, $f6
-    bc1t label_0
-    li $9, 0
-    j label_exit_0
-label_0:
-    li $9, 1
-label_exit_0:
-    sw $9, -4($fp)
-    lw $10, -4($fp)
+    # variable reference
+    lw $8, a
+    # write
     li $v0, 1
-    move $a0, $10
+    move $a0, $8
     syscall
-    li $11, 0
-    move $v0, $11
+    # variable reference
+    l.s $f4, bbbb
+    # write
+    li $v0, 2
+    mov.s $f12, $f4
+    syscall
+    # Int const
+    li $9, 0
+    # return
+    move $v0, $9
     j main_end
 main_end:
+    # eiplogue
 main_epilogue:
+    l.s $f4, 56($sp)
+    l.s $f6, 52($sp)
+    l.s $f8, 48($sp)
+    l.s $f10, 44($sp)
+    l.s $f16, 40($sp)
+    l.s $f18, 36($sp)
     lw $8, 32($sp)
     lw $9, 28($sp)
     lw $10, 24($sp)
@@ -51,5 +65,5 @@ main_epilogue:
     li $v0, 10
     syscall
 .data
-    main_framesize: .word 36
+    main_framesize: .word 56
 .data
