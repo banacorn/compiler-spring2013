@@ -1,11 +1,4 @@
-float lesen () {
-    return read();
-}
-
-int f () {
-    return lesen();
-}
-
 void main () {
-    write(f());   
+    int a = 4.5 + 3;
+    write(a);   
 }

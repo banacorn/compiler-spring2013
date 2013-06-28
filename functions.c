@@ -538,15 +538,11 @@ genConvert (var_ref * a, var_ref * b) {
     Reference new;
     if (a -> type == FLOAT_ && b -> type == INT_) {
         b -> type = FLOAT_;
-        new = getFPReg();
-        fprintf(fp, "    mtc1 $%d, $f%d\n", b -> reference.index, new.index);
-        fprintf(fp, "    cvt.s.w $f%d, $f%d\n", new.index, new.index);
+        new = genInttoFloat(b -> reference);
         b -> reference = new;
     } else if (a -> type == INT_ && b -> type == FLOAT_) {
         a -> type = FLOAT_;
-        new = getFPReg();
-        fprintf(fp, "    mtc1 $%d, $f%d\n", a -> reference.index, new.index);
-        fprintf(fp, "    cvt.s.w $f%d, $f%d\n", new.index, new.index);
+        new = genInttoFloat(a -> reference);
         a -> reference = new;
     }
 }
