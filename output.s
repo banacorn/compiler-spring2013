@@ -1,5 +1,4 @@
 .data
-    var_b:		.word 4
 .text
 main:
     # prologue
@@ -24,11 +23,17 @@ main:
     sw $14, 8($sp)
     sw $15, 4($sp)
 main_begin:
+    # Int const
+    li $8, 2
+    # Float const initialization
+    mtc1 $8, $f4
+    cvt.s.w $f4, $f4
+    s.s $f4, -4($fp)
     # variable reference
-    lw $8, var_b
+    l.s $f6, -4($fp)
     # write
-    li $v0, 1
-    move $a0, $8
+    li $v0, 2
+    mov.s $f12, $f6
     syscall
 main_end:
     # eiplogue
@@ -53,5 +58,5 @@ main_epilogue:
     li $v0, 10
     syscall
 .data
-    main_framesize: .word 56
+    main_framesize: .word 60
 .data

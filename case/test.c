@@ -1,6 +1,5 @@
-int b = 4;
 void main()
 {
-
-    write(b);
+    float a1 = 2;
+    write(a1);
 }

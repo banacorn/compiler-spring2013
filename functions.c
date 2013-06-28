@@ -262,16 +262,44 @@ genGlobalVariableDeclaration (char * name, ST_TYPE type) {
 }
 
 void
-genLocalVariableInitialization (char * name, ST_TYPE type, int registerOffset) {
+genLocalVariableInitialization (char * name, ST_TYPE type, var_ref * expression) {
     int frameOffset = lookup(name) -> offset;
+    int registerOffset = expression -> reference.index;
+    printf("%d %d\n", type == INT_, expression -> type == INT_);
+
+    // fprintf(fp, "    mtc1 $%d, $f%d\n", b -> reference.index, new.index);
+    //     fprintf(fp, "    cvt.s.w $f%d, $f%d\n", new.index, new.index);
+        
+        // fprintf(fp, "    cvt.w.s $f%d, $f%d\n", rightReference.index, rightReference.index);
+        // fprintf(fp, "    mfc1 $%d, $f%d\n", new.index, rightReference.index);
+
+
     switch (type) {
         case INT_:
             fprintf(fp, "    # Int const initialization\n");
-            fprintf(fp, "    sw $%d, %d($fp)\n", registerOffset, frameOffset);
+            if (expression -> type == INT_) {
+                fprintf(fp, "    sw $%d, %d($fp)\n", registerOffset, frameOffset);
+            } else {
+                Reference tempIntReg = getIReg();
+                fprintf(fp, "    cvt.w.s $f%d, $f%d\n", registerOffset, registerOffset);
+                fprintf(fp, "    mfc1 $%d, $f%d\n", tempIntReg.index, registerOffset);
+                fprintf(fp, "    sw $%d, %d($fp)\n", tempIntReg.index, frameOffset);
+            }
             break;
         case FLOAT_:
             fprintf(fp, "    # Float const initialization\n");
-            fprintf(fp, "    s.s $f%d, %d($fp)\n", registerOffset, frameOffset);
+            if (expression -> type == FLOAT_) {
+                fprintf(fp, "    s.s $f%d, %d($fp)\n", registerOffset, frameOffset);
+                
+            } else {
+                Reference tempFloatReg = getFPReg();
+
+                fprintf(fp, "    mtc1 $%d, $f%d\n", registerOffset, tempFloatReg.index);
+                fprintf(fp, "    cvt.s.w $f%d, $f%d\n", tempFloatReg.index, tempFloatReg.index);
+                
+                fprintf(fp, "    s.s $f%d, %d($fp)\n", tempFloatReg.index, frameOffset);
+            }
+
             break;
         default:
             printf("??? %s\n", name);
@@ -1511,7 +1539,7 @@ ST_TYPE deal_var_decl(AST_NODE *ptr){
                                 genGlobalVariableDeclaration(temp -> child -> child -> semantic_value.lexeme, ptr->child->semantic_value.type); 
                             } else {
                                 genLocalVariableDeclaration(temp -> child -> child -> semantic_value.lexeme, ptr->child->semantic_value.type); 
-                                genLocalVariableInitialization(temp -> child -> child -> semantic_value.lexeme, ptr->child->semantic_value.type, vt -> reference.index); 
+                                genLocalVariableInitialization(temp -> child -> child -> semantic_value.lexeme, ptr->child->semantic_value.type, vt); 
                             }
                         }
                     }
