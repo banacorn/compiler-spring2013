@@ -217,7 +217,26 @@ printTab (symtab * tab) {
     printf("    register: %d\n", tab -> reference.index);
     printf("------------------\n");
 }
-
+void
+printReference (Reference reference) {
+    printf("------------------\n");
+    switch (reference.type) {
+        case IReg:
+            printf("    type: Int\n");
+            printf("    register: $%d\n", reference.index);
+            break;
+        case FPReg:
+            printf("    type: Float\n");
+            printf("    register: $f%d\n", reference.index);
+        case StrLit:
+            printf("    type: String Literal\n");
+            printf("    label: #%d\n", reference.index);
+            break;
+        default:
+            printf("    ??: %d\n", reference.type);
+    }
+    printf("------------------\n");
+}
 
 void init () {
     fp = fopen(OUTPUT, "w");
@@ -261,6 +280,22 @@ genGlobalVariableDeclaration (char * name, ST_TYPE type) {
     }
 }
 
+Reference
+genFloattoInt (Reference i) {
+    Reference tempIntReg = getIReg();    
+    fprintf(fp, "    cvt.w.s $f%d, $f%d\n", i.index, i.index);
+    fprintf(fp, "    mfc1 $%d, $f%d\n", tempIntReg.index, i.index);
+    return tempIntReg;
+}
+
+Reference
+genInttoFloat (Reference f) {
+    Reference tempFloatReg = getFPReg();    
+    fprintf(fp, "    mtc1 $%d, $f%d\n", f.index, tempFloatReg.index);
+    fprintf(fp, "    cvt.s.w $f%d, $f%d\n", tempFloatReg.index, tempFloatReg.index);
+    return tempFloatReg;
+}
+
 void
 genLocalVariableInitialization (char * name, ST_TYPE type, var_ref * expression) {
     int frameOffset = lookup(name) -> offset;
@@ -272,9 +307,7 @@ genLocalVariableInitialization (char * name, ST_TYPE type, var_ref * expression)
             if (expression -> type == INT_) {
                 fprintf(fp, "    sw $%d, %d($fp)\n", registerOffset, frameOffset);
             } else {
-                Reference tempIntReg = getIReg();
-                fprintf(fp, "    cvt.w.s $f%d, $f%d\n", registerOffset, registerOffset);
-                fprintf(fp, "    mfc1 $%d, $f%d\n", tempIntReg.index, registerOffset);
+                Reference tempIntReg = genFloattoInt(expression -> reference);
                 fprintf(fp, "    sw $%d, %d($fp)\n", tempIntReg.index, frameOffset);
             }
             break;
@@ -284,11 +317,7 @@ genLocalVariableInitialization (char * name, ST_TYPE type, var_ref * expression)
                 fprintf(fp, "    s.s $f%d, %d($fp)\n", registerOffset, frameOffset);
                 
             } else {
-                Reference tempFloatReg = getFPReg();
-
-                fprintf(fp, "    mtc1 $%d, $f%d\n", registerOffset, tempFloatReg.index);
-                fprintf(fp, "    cvt.s.w $f%d, $f%d\n", tempFloatReg.index, tempFloatReg.index);
-                
+                Reference tempFloatReg = genInttoFloat(expression -> reference);
                 fprintf(fp, "    s.s $f%d, %d($fp)\n", tempFloatReg.index, frameOffset);
             }
 
@@ -308,13 +337,12 @@ genLocalVariableDeclaration (char * name, ST_TYPE type) {
 }
 
 void
-genReturn (var_ref * ref) {
+genReturn (Reference ref) {
     fprintf(fp, "    # return\n");        
-
-    if (ref -> type == INT_)
-        fprintf(fp, "    move $v0, $%d\n", ref -> reference.index);
-    else if (ref -> type == FLOAT_)
-        fprintf(fp, "    mov.s $f0, $f%d\n", ref -> reference.index);
+    if (ref.type == IReg)
+        fprintf(fp, "    move $v0, $%d\n", ref.index);
+    else if (ref.type == FPReg)
+        fprintf(fp, "    mov.s $f0, $f%d\n", ref.index);
     fprintf(fp, "    j %s_end\n", currentFunction);
 };
 
@@ -358,6 +386,9 @@ genInvocation (char * name) {
                 fprintf(fp, "    li $v0, 6\n");
                 fprintf(fp, "    syscall\n");
                 fprintf(fp, "    mov.s $f%d, $f0\n", reference.index);
+                break;
+            default:
+                fprintf(fp, "    # A_A %d\n", LHTYPE);
                 break;
         }
         // printf("read type: %d\n", reference.type);
@@ -1165,13 +1196,21 @@ ST_TYPE deal_stmt(AST_NODE * ptr){
             break;
         case STMT_RETURN:
         //RETURN relop_expr MK_SEMICOLON
+            LHTYPE = func_return;
             temp=deal_relop_expr(ptr->child);
+            // printf("fuck %p\n", temp -> reference);
+            // printReference(temp -> reference);
             if ((func_return==ERROR_)||(temp->type==ERROR_)){
                 result=ERROR_;
             } else if (func_return!= temp->type){
                 switch (func_return){
                     case INT_:
                     case FLOAT_:
+                        if (func_return == INT_ && temp -> type == FLOAT_) {
+                            genReturn(genFloattoInt(temp -> reference));
+                        } else if (func_return == FLOAT_ && temp -> type == INT_) {
+                            genReturn(genInttoFloat(temp -> reference));
+                        }
                         if ((temp->type!=INT_)&&(temp->type!=FLOAT_)){
                             printf("error %d: incompatible return type, expects to return %s, returning %s\n",ptr->linenumber,printtype(func_return),printtype(temp->type));
                             result=ERROR_;
@@ -1184,7 +1223,7 @@ ST_TYPE deal_stmt(AST_NODE * ptr){
                 }
             }
             else{
-                genReturn(temp);
+                genReturn(temp -> reference);
                 result=ZERO_;
             }
             IS_RETURN=1;
@@ -1618,7 +1657,10 @@ var_ref* deal_relop_expr(AST_NODE* ptr){
     var_ref* op2;
     if (ptr->semantic_value.op_type==OPT_NONE){
     //relop_term
-        return deal_relop_term(ptr->child);
+        var_ref * t = deal_relop_term(ptr->child);
+        // printf("%s form %p\n", currentFunction, t -> reference);
+        // printReference(t -> reference);
+        return t;
     }
     else {
     //relop_expr OP_OR relop_term
@@ -1892,7 +1934,7 @@ var_ref* deal_factor(AST_NODE* ptr){
             break;
         case F_ID:
         //ID MK_LPAREN relop_expr_list MK_RPAREN
-            op= check_function(ptr->child,ptr->child->sibling);
+            op = check_function(ptr->child,ptr->child->sibling);
             op -> reference = genInvocation(ptr -> child -> semantic_value.lexeme);
             op -> type = (op -> reference.type == IReg) ? INT_ : FLOAT_;
             break;
