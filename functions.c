@@ -282,7 +282,8 @@ genGlobalVariableDeclaration (char * name, ST_TYPE type) {
 
 Reference
 genFloattoInt (Reference i) {
-    Reference tempIntReg = getIReg();    
+    Reference tempIntReg = getIReg();   
+    fprintf(fp, "    # Float -> Int conversion \n");         
     fprintf(fp, "    cvt.w.s $f%d, $f%d\n", i.index, i.index);
     fprintf(fp, "    mfc1 $%d, $f%d\n", tempIntReg.index, i.index);
     return tempIntReg;
@@ -291,6 +292,7 @@ genFloattoInt (Reference i) {
 Reference
 genInttoFloat (Reference f) {
     Reference tempFloatReg = getFPReg();    
+    fprintf(fp, "    # Int -> Float conversion \n");         
     fprintf(fp, "    mtc1 $%d, $f%d\n", f.index, tempFloatReg.index);
     fprintf(fp, "    cvt.s.w $f%d, $f%d\n", tempFloatReg.index, tempFloatReg.index);
     return tempFloatReg;
