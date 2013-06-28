@@ -265,14 +265,6 @@ void
 genLocalVariableInitialization (char * name, ST_TYPE type, var_ref * expression) {
     int frameOffset = lookup(name) -> offset;
     int registerOffset = expression -> reference.index;
-    printf("%d %d\n", type == INT_, expression -> type == INT_);
-
-    // fprintf(fp, "    mtc1 $%d, $f%d\n", b -> reference.index, new.index);
-    //     fprintf(fp, "    cvt.s.w $f%d, $f%d\n", new.index, new.index);
-        
-        // fprintf(fp, "    cvt.w.s $f%d, $f%d\n", rightReference.index, rightReference.index);
-        // fprintf(fp, "    mfc1 $%d, $f%d\n", new.index, rightReference.index);
-
 
     switch (type) {
         case INT_:

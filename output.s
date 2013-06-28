@@ -24,16 +24,48 @@ main:
     sw $15, 4($sp)
 main_begin:
     # Int const
-    li $8, 2
-    # Float const initialization
-    mtc1 $8, $f4
-    cvt.s.w $f4, $f4
-    s.s $f4, -4($fp)
+    li $8, 1
+    # Int const initialization
+    sw $8, -4($fp)
+    # Float const
+    li.s $f4, 2.300000
+    # Int const initialization
+    cvt.w.s $f4, $f4
+    mfc1 $9, $f4
+    sw $9, -8($fp)
+    # Float const
+    li.s $f6, 3.100000
+    # Int const initialization
+    cvt.w.s $f6, $f6
+    mfc1 $10, $f6
+    sw $10, -12($fp)
+    # Int const
+    li $11, 4
+    # Int const initialization
+    sw $11, -16($fp)
     # variable reference
-    l.s $f6, -4($fp)
+    lw $12, -4($fp)
     # write
-    li $v0, 2
-    mov.s $f12, $f6
+    li $v0, 1
+    move $a0, $12
+    syscall
+    # variable reference
+    lw $13, -8($fp)
+    # write
+    li $v0, 1
+    move $a0, $13
+    syscall
+    # variable reference
+    lw $14, -12($fp)
+    # write
+    li $v0, 1
+    move $a0, $14
+    syscall
+    # variable reference
+    lw $15, -16($fp)
+    # write
+    li $v0, 1
+    move $a0, $15
     syscall
 main_end:
     # eiplogue
@@ -58,5 +90,5 @@ main_epilogue:
     li $v0, 10
     syscall
 .data
-    main_framesize: .word 60
+    main_framesize: .word 72
 .data
