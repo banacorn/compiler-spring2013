@@ -654,18 +654,27 @@ genStringConst (char * value) {
 
 Reference
 genIDConst (var_ref * ref) {
+
     Reference reference;
     fprintf(fp, "    # variable reference\n");        
-    int offset = lookup(ref -> name) -> offset;
+    symtab * tab = lookup(ref -> name);
+    int offset = tab -> offset;
     int global = offset == 0;
     int argument = offset > 0;
+    int offsetRegister = tab -> reference.index;
+    int array = offsetRegister != 0;
+    // int array = tab -> 
     if (ref -> type == INT_) {
         reference = getIReg();
         if (global)
             fprintf(fp, "    lw $%d, var_%s\n", reference.index, ref -> name);
         else if (argument)
             fprintf(fp, "    move $%d, $%d\n", reference.index, offset + 15);
-        else
+        else if (array) {
+            fprintf(fp, "    sub $%d, $fp, $%d\n", offsetRegister, offsetRegister);
+            fprintf(fp, "    addi $%d, $%d, %d\n", offsetRegister, offsetRegister, offset);
+            fprintf(fp, "    lw $%d, 0($%d)\n", reference.index, offsetRegister);
+        } else
             fprintf(fp, "    lw $%d, %d($fp)\n", reference.index, offset);
 
     } else if (ref -> type == FLOAT_) {
@@ -879,7 +888,7 @@ genAssignment (var_ref * leftRef, Reference rightReference) {
             fprintf(fp, "    sw $%d, var_%s\n", rightReference.index, leftRef -> name);
         else
             fprintf(fp, "    sw $%d, %d($fp)\n", rightReference.index, offset);
-        tab -> reference = rightReference;
+        // tab -> reference = rightReference;
     } else if (tab -> type == INT_ && rightReference.type == FPReg) {
         new = getIReg();
         fprintf(fp, "    cvt.w.s $f%d, $f%d\n", rightReference.index, rightReference.index);
@@ -888,13 +897,13 @@ genAssignment (var_ref * leftRef, Reference rightReference) {
             fprintf(fp, "    sw $%d, var_%s\n", new.index, leftRef -> name);
         else
             fprintf(fp, "    sw $%d, %d($fp)\n", new.index, offset);
-        tab -> reference = new;
+        // tab -> reference = new;
     } else if (tab -> type == FLOAT_ && rightReference.type == FPReg) {
         if (global)
             fprintf(fp, "    s.s $f%d, var_%s\n", rightReference.index, leftRef -> name);
         else
             fprintf(fp, "    s.s $f%d, %d($fp)\n", rightReference.index, offset);
-        tab -> reference = rightReference;
+        // tab -> reference = rightReference;
     } else if (tab -> type == FLOAT_ && rightReference.type == IReg) {
         new = getFPReg();
         fprintf(fp, "    mtc1 $%d, $f%d\n", rightReference.index, new.index);
@@ -903,7 +912,7 @@ genAssignment (var_ref * leftRef, Reference rightReference) {
             fprintf(fp, "    s.s $f%d, var_%s\n", new.index, leftRef -> name);
         else
             fprintf(fp, "    s.s $f%d, %d($fp)\n", new.index, offset);
-        tab -> reference = new;       
+        // tab -> reference = new;       
         
     }
 }

@@ -28,9 +28,9 @@ main:
     sw $15, 60($sp)
 main_begin:
     # Int const
-    li $8, 7
+    li $8, 2
     # Int const
-    li $9, 8
+    li $9, 3
     # adding up offset
     li $10, 0
     add $10, $10, $8
@@ -40,11 +40,31 @@ main_begin:
     li $11, 4
     mul $10, $10, $11
     # Int const
-    li $12, 2
+    li $12, 4
     # assignment
     sub $10, $fp, $10
     addi $10, $10, -4
     sw $12, 0($10)
+    # Int const
+    li $13, 2
+    # Int const
+    li $14, 3
+    # adding up offset
+    li $15, 0
+    add $15, $15, $13
+    li $16, 10
+    mul $15, $15, $16
+    add $15, $15, $14
+    li $16, 4
+    mul $15, $15, $16
+    # variable reference
+    sub $15, $fp, $15
+    addi $15, $15, -4
+    lw $17, 0($15)
+    # write
+    li $v0, 1
+    move $a0, $17
+    syscall
 main_end:
     # eiplogue
 main_epilogue:
