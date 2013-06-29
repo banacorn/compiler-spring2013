@@ -148,7 +148,6 @@ struct symtab{
     int scope;
     int line;
     int offset;
-    int number;
     Reference reference;
 };
 typedef struct symtab symtab;
@@ -163,6 +162,12 @@ typedef struct{
     Parameter * parameter;
     Reference reference;
 }var_ref;   
+
+typedef struct {
+    int index;
+    int size;
+    Reference reference;
+} Array;
 
 /*
 struct AST_program{

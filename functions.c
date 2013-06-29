@@ -23,7 +23,7 @@ float tempFloat;
 
 FILE * fp;
 
-int localVariableOrder;
+int localVariableOffset;
 int globalVariableInitialized;
 int parameterNumber = 4;
 int argumentIndexInt = 1;
@@ -39,6 +39,10 @@ int fpRegisterIndex = 4;
 int literalStringIndex = 0;
 
 int labelIndex = 0;
+
+// currentArray
+Array currentArray[10];
+int currentArrayDim = 0;
 
 // currentFunction
 char * currentFunction;
@@ -217,6 +221,7 @@ printReference (Reference reference) {
         case IReg:
             printf("    type: Int\n");
             printf("    register: $%d\n", reference.index);
+
             break;
         case FPReg:
             printf("    type: Float\n");
@@ -241,7 +246,7 @@ void init () {
 void
 functionStart () {
     fprintf(fp, ".data\n");
-    localVariableOrder = 0;
+    localVariableOffset = 0;
     globalVariableInitialized = 0;
 
 }
@@ -327,9 +332,56 @@ void
 genLocalVariableDeclaration (char * name, ST_TYPE type) {
     symtab * tab;
     tab = lookup(name);
-    tab -> offset = -4 + -4 * localVariableOrder;
-    tab -> number = localVariableOrder;
-    localVariableOrder++;
+    tab -> offset = -4 + -4 * localVariableOffset;
+    localVariableOffset++;
+}
+
+void
+genArrayDeclaration (symtab * tab, Type_arr * arr) {
+    tab -> offset = -4 + -4 * localVariableOffset;
+    int i, size;
+    for (i = 0, size = 1; i < 10; i++) {
+        if (arr -> dim_limit[i] == 0)
+            break;
+        else
+            size *= arr -> dim_limit[i];
+    }
+    localVariableOffset += size;
+}
+
+
+void
+genArrayReference (var_ref * ref) {
+    symtab * tab = lookup(ref -> name);
+    Type_arr * arr = tab -> symtab_u.st_arr;
+    int arrayDim = currentArrayDim;
+    int i;
+
+
+
+    Reference base = getIReg();
+    Reference factor = getIReg();
+    // Reference reference = ref -> type == INT_ ? getIReg() : getFPReg();
+
+    fprintf(fp, "    # adding up offset\n");
+    fprintf(fp, "    li $%d, 0\n", base.index);
+
+
+    for (i = 9; i >= 0; i--) {
+        if (arr -> dim_limit[i] != 0) {
+            fprintf(fp, "    add $%d, $%d, $%d\n", base.index, base.index, currentArray[i].reference.index);
+            if (i) {
+                fprintf(fp, "    li $%d, %d\n", factor.index, arr -> dim_limit[arrayDim - i]);
+                fprintf(fp, "    mul $%d, $%d, $%d\n", base.index, base.index, factor.index); 
+            }
+        }
+    }
+
+    // x4
+    fprintf(fp, "    li $%d, 4\n", factor.index);
+    fprintf(fp, "    mul $%d, $%d, $%d\n", base.index, base.index, factor.index); 
+    
+    tab -> reference = base;
 }
 
 void
@@ -568,7 +620,7 @@ genEpilogue (char * name) {
 
     // misc data
     fprintf(fp, ".data\n");
-    fprintf(fp, "    %s_framesize: .word %d\n", name, BASE_FRAME_SIZE + localVariableOrder * 4);
+    fprintf(fp, "    %s_framesize: .word %d\n", name, BASE_FRAME_SIZE + localVariableOffset * 4);
 
 
     // parameterNumber = 0;
@@ -607,25 +659,23 @@ genIDConst (var_ref * ref) {
     int offset = lookup(ref -> name) -> offset;
     int global = offset == 0;
     int argument = offset > 0;
-    if (argument)
-        printf("argument\n");
     if (ref -> type == INT_) {
         reference = getIReg();
         if (global)
             fprintf(fp, "    lw $%d, var_%s\n", reference.index, ref -> name);
         else if (argument)
-            fprintf(fp, "    move $%d, $%d\n", reference.index, lookup(ref -> name) -> offset + 15);
+            fprintf(fp, "    move $%d, $%d\n", reference.index, offset + 15);
         else
-            fprintf(fp, "    lw $%d, %d($fp)\n", reference.index, lookup(ref -> name) -> offset);
+            fprintf(fp, "    lw $%d, %d($fp)\n", reference.index, offset);
 
     } else if (ref -> type == FLOAT_) {
         reference = getFPReg();
         if (global)
             fprintf(fp, "    l.s $f%d, var_%s\n", reference.index, ref -> name);
         else if (argument) {
-            fprintf(fp, "    mov.s $f%d, $f%d\n", reference.index, (lookup(ref -> name) -> offset) * 2 + 18);
+            fprintf(fp, "    mov.s $f%d, $f%d\n", reference.index, offset * 2 + 18);
         } else    
-            fprintf(fp, "    l.s $f%d, %d($fp)\n", reference.index, lookup(ref -> name) -> offset);
+            fprintf(fp, "    l.s $f%d, %d($fp)\n", reference.index, offset);
 
     }
     return reference;
@@ -809,16 +859,24 @@ genSub (var_ref * a, var_ref * b) {
 
 
 void
-genAssignment (char * leftName, Reference rightReference) {
+genAssignment (var_ref * leftRef, Reference rightReference) {
     fprintf(fp, "    # assignment\n");        
-    symtab * tab = lookup(leftName);
+
+    symtab * tab = lookup(leftRef -> name);
     int offset = tab -> offset;
     int global = offset == 0;
 
+    // printTab(tab);
+
     Reference new;
-    if (tab -> type == INT_ && rightReference.type == IReg) {
+    if (tab -> type == ARR_) {
+        int offsetRegister = tab -> reference.index;
+        fprintf(fp, "    sub $%d, $fp, $%d\n", offsetRegister, offsetRegister);
+        fprintf(fp, "    addi $%d, $%d, %d\n", offsetRegister, offsetRegister, offset);
+        fprintf(fp, "    sw $%d, 0($%d)\n", rightReference.index, offsetRegister);
+    } else if (tab -> type == INT_ && rightReference.type == IReg) {
         if (global)
-            fprintf(fp, "    sw $%d, var_%s\n", rightReference.index, leftName);
+            fprintf(fp, "    sw $%d, var_%s\n", rightReference.index, leftRef -> name);
         else
             fprintf(fp, "    sw $%d, %d($fp)\n", rightReference.index, offset);
         tab -> reference = rightReference;
@@ -827,13 +885,13 @@ genAssignment (char * leftName, Reference rightReference) {
         fprintf(fp, "    cvt.w.s $f%d, $f%d\n", rightReference.index, rightReference.index);
         fprintf(fp, "    mfc1 $%d, $f%d\n", new.index, rightReference.index);
         if (global)
-            fprintf(fp, "    sw $%d, var_%s\n", new.index, leftName);
+            fprintf(fp, "    sw $%d, var_%s\n", new.index, leftRef -> name);
         else
             fprintf(fp, "    sw $%d, %d($fp)\n", new.index, offset);
         tab -> reference = new;
     } else if (tab -> type == FLOAT_ && rightReference.type == FPReg) {
         if (global)
-            fprintf(fp, "    s.s $f%d, var_%s\n", rightReference.index, leftName);
+            fprintf(fp, "    s.s $f%d, var_%s\n", rightReference.index, leftRef -> name);
         else
             fprintf(fp, "    s.s $f%d, %d($fp)\n", rightReference.index, offset);
         tab -> reference = rightReference;
@@ -842,7 +900,7 @@ genAssignment (char * leftName, Reference rightReference) {
         fprintf(fp, "    mtc1 $%d, $f%d\n", rightReference.index, new.index);
         fprintf(fp, "    cvt.s.w $f%d, $f%d\n", new.index, new.index);
         if (global)
-            fprintf(fp, "    s.s $f%d, var_%s\n", new.index, leftName);
+            fprintf(fp, "    s.s $f%d, var_%s\n", new.index, leftRef -> name);
         else
             fprintf(fp, "    s.s $f%d, %d($fp)\n", new.index, offset);
         tab -> reference = new;       
@@ -1156,6 +1214,9 @@ ST_TYPE deal_block(AST_NODE* ptr){
 }
 
 ST_TYPE deal_stmt(AST_NODE * ptr){
+
+    currentArrayDim = 0;
+
     var_ref* temp;
     AST_NODE* p;
     ST_TYPE result=ZERO_;
@@ -1221,8 +1282,8 @@ ST_TYPE deal_stmt(AST_NODE * ptr){
             LHTYPE = left -> type;
             var_ref * right = deal_relop_expr(ptr -> child -> sibling);
 
-            
-            genAssignment(left -> name, right -> reference);
+                        
+            genAssignment(left, right -> reference);
 
             result= stmt_assign_ex(left, right, ptr->linenumber);
             break;
@@ -1254,6 +1315,7 @@ ST_TYPE deal_stmt(AST_NODE * ptr){
             result=(result==ERROR_)?ERROR_:generate;
             break;
         case STMT_FUNC_CALL:
+
         //ID MK_LPAREN relop_expr_list MK_RPAREN MK_SEMICOLON
             if ((strcmp(ptr->child->semantic_value.lexeme, "write")== 0)||      //<----maybe reduce
                 (strcmp(ptr->child->semantic_value.lexeme, "WRITE")== 0)){
@@ -1307,8 +1369,6 @@ ST_TYPE deal_stmt(AST_NODE * ptr){
         //RETURN relop_expr MK_SEMICOLON
             LHTYPE = func_return;
             temp=deal_relop_expr(ptr->child);
-            // printf("fuck %p\n", temp -> reference);
-            // printReference(temp -> reference);
             if ((func_return==ERROR_)||(temp->type==ERROR_)){
                 result=ERROR_;
             } else if (func_return!= temp->type){
@@ -1683,6 +1743,7 @@ ST_TYPE deal_var_decl(AST_NODE *ptr){
                         arr_info=deal_dim_decl(temp->child->child->sibling);
                         arr_info->arrtype=ptr->child->semantic_value.type;
                         temp->child->child->symptr=insert(temp->child->child->semantic_value.lexeme, ARR_, arr_info, 0, ptr->linenumber);
+                        genArrayDeclaration(temp->child->child->symptr, arr_info);
                     }
                     break;
                 case ASSIGN_:
@@ -2159,7 +2220,6 @@ var_ref* deal_var_ref(AST_NODE * ptr){
                 
                 temp->type=STP->type;
                 temp->name=ptr->child->semantic_value.lexeme;
-
                 // symtab * tab = lookup(temp -> name);
                 // printTab(tab);
 
@@ -2176,6 +2236,7 @@ var_ref* deal_var_ref(AST_NODE * ptr){
                     temp->var_ref_u.arr_info=PTA;
                 }
                 ptr->child->symptr=STP;
+
             }
             break;
         case ARR_:
@@ -2196,12 +2257,14 @@ var_ref* deal_var_ref(AST_NODE * ptr){
                 else{
                     op=deal_expr(ptr->child->sibling->child);
                     if ((op->type!=ERROR_)&&(op->type!=INT_)){
-                    printf("error %d: dimension is not an integer in array variable %s\n",ptr->linenumber,temp->name);
-                    temp->type=ERROR_;
+                        printf("error %d: dimension is not an integer in array variable %s\n",ptr->linenumber,temp->name);
+                        temp->type=ERROR_;
                     }
                     int i;
                     i=--temp->var_ref_u.arr_info->dim;
-                    
+                    currentArray[i].reference = op -> reference;
+                    currentArrayDim++;
+
                     /*we have reached the variable in the array*/
                     if(i==0){
                         temp->type=temp->var_ref_u.arr_info->arrtype;
@@ -2209,6 +2272,7 @@ var_ref* deal_var_ref(AST_NODE * ptr){
                             temp->type=STR_VAR_;
                             temp->var_ref_u.type_name=temp->var_ref_u.arr_info->type_name;
                         }
+                        genArrayReference(temp);
                     }
                 }
                 return temp;

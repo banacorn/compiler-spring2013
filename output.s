@@ -1,92 +1,5 @@
 .data
 .text
-add_entry:
-    # prologue
-    sw $ra, 0($sp)
-    sw $fp, -4($sp)
-    add $fp, $sp, -4
-    add $sp, $sp, -8
-    lw $2, add_framesize
-    sub $sp, $sp, $2
-    # save floating point
-    s.s $f4, 120($sp)
-    s.s $f6, 116($sp)
-    s.s $f8, 112($sp)
-    s.s $f10, 108($sp)
-    s.s $f12, 104($sp)
-    s.s $f14, 100($sp)
-    s.s $f16, 96($sp)
-    s.s $f18, 92($sp)
-    # save integers
-    sw $8, 88($sp)
-    sw $9, 84($sp)
-    sw $10, 80($sp)
-    sw $11, 76($sp)
-    sw $12, 72($sp)
-    sw $13, 68($sp)
-    sw $14, 64($sp)
-    sw $15, 60($sp)
-add_begin:
-    # variable reference
-    mov.s $f4, $f20
-    # variable reference
-    mov.s $f6, $f22
-    # type coersion Int => Float
-    # addition
-    add.s $f8, $f4, $f6
-    # variable reference
-    mov.s $f10, $f24
-    # type coersion Int => Float
-    # addition
-    add.s $f12, $f8, $f10
-    # variable reference
-    move $8, $16
-    # type coersion Int => Float
-    # Int -> Float conversion 
-    mtc1 $8, $f14
-    cvt.s.w $f14, $f14
-    # addition
-    add.s $f16, $f12, $f14
-    # variable reference
-    move $9, $17
-    # type coersion Int => Float
-    # Int -> Float conversion 
-    mtc1 $9, $f18
-    cvt.s.w $f18, $f18
-    # addition
-    add.s $f4, $f16, $f18
-    # return
-    mov.s $f0, $f4
-    j add_end
-add_end:
-    # eiplogue
-add_epilogue:
-    # save floating point
-    l.s $f4, 120($sp)
-    l.s $f6, 116($sp)
-    l.s $f8, 112($sp)
-    l.s $f10, 108($sp)
-    l.s $f12, 104($sp)
-    l.s $f14, 100($sp)
-    l.s $f16, 96($sp)
-    l.s $f18, 92($sp)
-    # load integers
-    lw $8, 88($sp)
-    lw $9, 84($sp)
-    lw $10, 80($sp)
-    lw $11, 76($sp)
-    lw $12, 72($sp)
-    lw $13, 68($sp)
-    lw $14, 64($sp)
-    lw $15, 60($sp)
-    lw $ra, 4($fp)
-    add $sp, $fp, 4
-    lw $fp, 0($fp)
-    jr $ra
-.data
-    add_framesize: .word 120
-.data
-.text
 main:
     # prologue
     sw $ra, 0($sp)
@@ -115,76 +28,23 @@ main:
     sw $15, 60($sp)
 main_begin:
     # Int const
-    li $10, 1
+    li $8, 7
     # Int const
-    li $11, 2
+    li $9, 8
+    # adding up offset
+    li $10, 0
+    add $10, $10, $8
+    li $11, 10
+    mul $10, $10, $11
+    add $10, $10, $9
+    li $11, 4
+    mul $10, $10, $11
     # Int const
-    li $12, 3
-    # Float const
-    li.s $f6, 4.500000
-    # Float const
-    li.s $f8, 5.600000
-    # save parameters
-    s.s $f30, 56($sp)
-    s.s $f28, 52($sp)
-    s.s $f26, 48($sp)
-    s.s $f24, 44($sp)
-    s.s $f22, 40($sp)
-    s.s $f20, 36($sp)
-    sw $23, 32($sp)
-    sw $22, 28($sp)
-    sw $21, 24($sp)
-    sw $20, 20($sp)
-    sw $19, 16($sp)
-    sw $18, 12($sp)
-    sw $17, 8($sp)
-    sw $16, 4($sp)
-    # moving parameters
-    # Int -> Float conversion 
-    mtc1 $10, $f10
-    cvt.s.w $f10, $f10
-    mov.s $f20, $f10 
-    # Int -> Float conversion 
-    mtc1 $11, $f12
-    cvt.s.w $f12, $f12
-    mov.s $f22, $f12 
-    # Int -> Float conversion 
-    mtc1 $12, $f14
-    cvt.s.w $f14, $f14
-    mov.s $f24, $f14 
-    # Float -> Int conversion 
-    cvt.w.s $f6, $f6
-    mfc1 $13, $f6
-    move $16, $13 
-    # Float -> Int conversion 
-    cvt.w.s $f8, $f8
-    mfc1 $14, $f8
-    move $17, $14 
-    # function call
-    jal add_entry
-    l.s $f30, 56($sp)
-    l.s $f28, 52($sp)
-    l.s $f26, 48($sp)
-    l.s $f24, 44($sp)
-    l.s $f22, 40($sp)
-    l.s $f20, 36($sp)
-    lw $23, 32($sp)
-    lw $22, 28($sp)
-    lw $21, 24($sp)
-    lw $20, 20($sp)
-    lw $19, 16($sp)
-    lw $18, 12($sp)
-    lw $17, 8($sp)
-    lw $16, 4($sp)
-    mov.s $f16, $f0
+    li $12, 2
     # assignment
-    s.s $f16, -4($fp)
-    # variable reference
-    l.s $f18, -4($fp)
-    # write
-    li $v0, 2
-    mov.s $f12, $f18
-    syscall
+    sub $10, $fp, $10
+    addi $10, $10, -4
+    sw $12, 0($10)
 main_end:
     # eiplogue
 main_epilogue:
@@ -212,5 +72,5 @@ main_epilogue:
     li $v0, 10
     syscall
 .data
-    main_framesize: .word 124
+    main_framesize: .word 520
 .data
