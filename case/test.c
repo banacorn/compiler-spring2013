@@ -1,8 +1,10 @@
-float fac (float a) {
+void main(){
+    float a,b,c;
+    a=fread();
+    b = 3.0;
+    c = 6.0;
+    a = a*3+b/6.0;
     write(a);
-    return a + 1;
-}
-
-void main () {
-    fac(5.0);
-}
+    write("\n");
+    return ;
+} 
