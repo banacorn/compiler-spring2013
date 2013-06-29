@@ -1,11 +1,8 @@
-int fac (int a) {
-    if (a == 0) {
-        return 1;
-    } else {
-        return a * fac(a - 1);
-    }
+float fac (float a) {
+    write(a);
+    return a + 1;
 }
 
 void main () {
-    write(fac(5));
+    fac(5.0);
 }
