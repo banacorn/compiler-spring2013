@@ -1,4 +1,4 @@
-void add (int a, int b, int c) {
+void add (int a, float b, int c) {
     write(a + b);
 }
 
