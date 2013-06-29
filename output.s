@@ -1,5 +1,67 @@
 .data
 .text
+add_entry:
+    # prologue
+    sw $ra, 0($sp)
+    sw $fp, -4($sp)
+    add $fp, $sp, -4
+    add $sp, $sp, -8
+    lw $2, add_framesize
+    sub $sp, $sp, $2
+    # save floating point
+    s.s $f4, 88($sp)
+    s.s $f6, 84($sp)
+    s.s $f8, 80($sp)
+    s.s $f10, 76($sp)
+    s.s $f16, 72($sp)
+    s.s $f18, 68($sp)
+    # save integers
+    sw $8, 64($sp)
+    sw $9, 60($sp)
+    sw $10, 56($sp)
+    sw $11, 52($sp)
+    sw $12, 48($sp)
+    sw $13, 44($sp)
+    sw $14, 40($sp)
+    sw $15, 36($sp)
+add_begin:
+    # variable reference
+    move $8, $16
+    # variable reference
+    move $9, $17
+    # type coersion Int => Float
+    # addition
+    add $10, $8, $9
+    # write
+    li $v0, 1
+    move $a0, $10
+    syscall
+add_end:
+    # eiplogue
+add_epilogue:
+    # save floating point
+    l.s $f4, 88($sp)
+    l.s $f6, 84($sp)
+    l.s $f8, 80($sp)
+    l.s $f10, 76($sp)
+    l.s $f16, 72($sp)
+    l.s $f18, 68($sp)
+    # load integers
+    lw $8, 64($sp)
+    lw $9, 60($sp)
+    lw $10, 56($sp)
+    lw $11, 52($sp)
+    lw $12, 48($sp)
+    lw $13, 44($sp)
+    lw $14, 40($sp)
+    lw $15, 36($sp)
+    add $sp, $fp, 4
+    lw $fp, 0($fp)
+    jr $ra
+.data
+    add_framesize: .word 88
+.data
+.text
 main:
     # prologue
     sw $ra, 0($sp)
@@ -8,64 +70,76 @@ main:
     add $sp, $sp, -8
     lw $2, main_framesize
     sub $sp, $sp, $2
-    s.s $f4, 56($sp)
-    s.s $f6, 52($sp)
-    s.s $f8, 48($sp)
-    s.s $f10, 44($sp)
-    s.s $f16, 40($sp)
-    s.s $f18, 36($sp)
-    sw $8, 32($sp)
-    sw $9, 28($sp)
-    sw $10, 24($sp)
-    sw $11, 20($sp)
-    sw $12, 16($sp)
-    sw $13, 12($sp)
-    sw $14, 8($sp)
-    sw $15, 4($sp)
+    # save floating point
+    s.s $f4, 88($sp)
+    s.s $f6, 84($sp)
+    s.s $f8, 80($sp)
+    s.s $f10, 76($sp)
+    s.s $f16, 72($sp)
+    s.s $f18, 68($sp)
+    # save integers
+    sw $8, 64($sp)
+    sw $9, 60($sp)
+    sw $10, 56($sp)
+    sw $11, 52($sp)
+    sw $12, 48($sp)
+    sw $13, 44($sp)
+    sw $14, 40($sp)
+    sw $15, 36($sp)
 main_begin:
-    # Float const
-    li.s $f4, 4.500000
     # Int const
-    li $8, 3
-    # type coersion Int => Float
-    # Int -> Float conversion 
-    mtc1 $8, $f6
-    cvt.s.w $f6, $f6
-    # addition
-    add.s $f8, $f4, $f6
-    # Int const initialization
-    # Float -> Int conversion 
-    cvt.w.s $f8, $f8
-    mfc1 $9, $f8
-    sw $9, -4($fp)
-    # variable reference
-    lw $10, -4($fp)
-    # write
-    li $v0, 1
-    move $a0, $10
-    syscall
+    li $11, 1
+    # Int const
+    li $12, 2
+    # Int const
+    li $13, 3
+    # save parameters
+    sw $23, 32($sp)
+    sw $22, 28($sp)
+    sw $21, 24($sp)
+    sw $20, 20($sp)
+    sw $19, 16($sp)
+    sw $18, 12($sp)
+    sw $17, 8($sp)
+    sw $16, 4($sp)
+    # moving parameters
+    move $18, $13 
+    move $17, $12 
+    move $16, $11 
+    # function call
+    jal add_entry
+    lw $23, 32($sp)
+    lw $22, 28($sp)
+    lw $21, 24($sp)
+    lw $20, 20($sp)
+    lw $19, 16($sp)
+    lw $18, 12($sp)
+    lw $17, 8($sp)
+    lw $16, 4($sp)
+    mov.s $f4, $f0
 main_end:
     # eiplogue
 main_epilogue:
-    l.s $f4, 56($sp)
-    l.s $f6, 52($sp)
-    l.s $f8, 48($sp)
-    l.s $f10, 44($sp)
-    l.s $f16, 40($sp)
-    l.s $f18, 36($sp)
-    lw $8, 32($sp)
-    lw $9, 28($sp)
-    lw $10, 24($sp)
-    lw $11, 20($sp)
-    lw $12, 16($sp)
-    lw $13, 12($sp)
-    lw $14, 8($sp)
-    lw $15, 4($sp)
-    lw $ra, 4($fp)
+    # save floating point
+    l.s $f4, 88($sp)
+    l.s $f6, 84($sp)
+    l.s $f8, 80($sp)
+    l.s $f10, 76($sp)
+    l.s $f16, 72($sp)
+    l.s $f18, 68($sp)
+    # load integers
+    lw $8, 64($sp)
+    lw $9, 60($sp)
+    lw $10, 56($sp)
+    lw $11, 52($sp)
+    lw $12, 48($sp)
+    lw $13, 44($sp)
+    lw $14, 40($sp)
+    lw $15, 36($sp)
     add $sp, $fp, 4
     lw $fp, 0($fp)
     li $v0, 10
     syscall
 .data
-    main_framesize: .word 60
+    main_framesize: .word 88
 .data

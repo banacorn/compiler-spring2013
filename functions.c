@@ -24,6 +24,8 @@ FILE * fp;
 
 int localVariableOrder;
 int globalVariableInitialized;
+int parameterNumber = 4;
+int argumentIndex = 1;
 ST_TYPE LHTYPE;
 
 // .data
@@ -38,6 +40,9 @@ int labelIndex = 0;
 
 // currentFunction
 char * currentFunction;
+
+// parameter list
+Parameter * parameters;
 
 // control statement labels
 int whileIndex = 0;
@@ -228,6 +233,7 @@ printReference (Reference reference) {
         case FPReg:
             printf("    type: Float\n");
             printf("    register: $f%d\n", reference.index);
+            break;
         case StrLit:
             printf("    type: String Literal\n");
             printf("    label: #%d\n", reference.index);
@@ -368,6 +374,74 @@ genWrite (var_ref * ref) {
     fprintf(fp, "    syscall\n");
 }
 
+void
+genSaveParameter () {
+    // parameters
+    fprintf(fp, "    # save parameters\n");
+    int i;
+    for (i = 0; i < 8; i++) {
+        fprintf(fp, "    sw $%d, %d($sp)\n", 23 - i, 32 - i * 4);
+
+    }
+}
+
+void
+genRestoreParameter () {
+    // parameters
+    int i;
+    for (i = 0; i < 8; i++) {
+        fprintf(fp, "    lw $%d, %d($sp)\n", 23 - i, 32 - i * 4);
+
+    }
+}
+
+void
+genParameter (AST_NODE * id, var_ref * ref) {
+    genSaveParameter();
+
+    ST_func * funcStruct = id -> symptr -> symtab_u.st_func; 
+    param_list * PL = funcStruct -> PL;
+    Parameter * parameter = ref -> parameter;
+    int i = 0;
+
+    int parameterNumber = funcStruct -> params;
+
+    fprintf(fp, "    # moving parameters\n");
+    while (PL) {
+        if (parameter -> reference.type == IReg) {
+            fprintf(fp, "    move $%d, $%d \n", -i + 15 + parameterNumber, parameter -> reference.index);
+        } else {
+            fprintf(fp, "    mov.s $%d, $f%d \n", -i + 15 + parameterNumber, parameter -> reference.index);
+        }
+        parameter = (void *)parameter -> cons;
+        PL = PL -> next;
+        i++;
+    }
+    // printTab(id -> symptr);
+    // Parameter * parameter = parameters;
+    // int i = 0;
+    // while (parameter) {
+
+    //     printReference(parameter -> reference);
+    //     // if (parameter -> reference.type == IReg) {
+    //     //     fprintf(fp, "    move $a%d, $%d, \n", i, parameter -> reference.index);
+    //     // } else {
+    //     //     fprintf(fp, "    mov.s $a%d, $f%d, \n", i, parameter -> reference.index);
+    //     // }
+    //     parameter = parameter -> cons;
+    //     i++;
+    // }
+
+
+    // free parameter list
+    // Parameter * dummy;
+    // while (parameters) {
+    //     dummy = parameters;
+    //     parameters = (void *)parameters -> cons;
+    //     free(dummy);
+    // }
+}
+
 Reference
 genInvocation (char * name) {
     Reference reference;
@@ -396,9 +470,13 @@ genInvocation (char * name) {
         // printf("read type: %d\n", reference.type);
         return reference;
     } else {
-        fprintf(fp, "    # function call\n");        
+
+        symtab * tab = lookup(name);
+
+        fprintf(fp, "    # function call\n");
         fprintf(fp, "    jal %s_entry\n", name);
-        if (lookup(name) -> symtab_u.st_func -> ret_type == INT_) {
+        genRestoreParameter();
+        if (tab -> symtab_u.st_func -> ret_type == INT_) {
             reference = getIReg();
             fprintf(fp, "    move $%d, $v0\n", reference.index);
         } else {
@@ -428,20 +506,25 @@ genPrologue (char * name) {
     fprintf(fp, "    add $sp, $sp, -8\n");
     fprintf(fp, "    lw $2, %s_framesize\n", name);
     fprintf(fp, "    sub $sp, $sp, $2\n");
-    fprintf(fp, "    s.s $f4, 56($sp)\n");   
-    fprintf(fp, "    s.s $f6, 52($sp)\n");   
-    fprintf(fp, "    s.s $f8, 48($sp)\n");   
-    fprintf(fp, "    s.s $f10, 44($sp)\n");   
-    fprintf(fp, "    s.s $f16, 40($sp)\n");   
-    fprintf(fp, "    s.s $f18, 36($sp)\n");   
-    fprintf(fp, "    sw $8, 32($sp)\n");
-    fprintf(fp, "    sw $9, 28($sp)\n");
-    fprintf(fp, "    sw $10, 24($sp)\n");
-    fprintf(fp, "    sw $11, 20($sp)\n");
-    fprintf(fp, "    sw $12, 16($sp)\n");
-    fprintf(fp, "    sw $13, 12($sp)\n");
-    fprintf(fp, "    sw $14, 8($sp)\n");
-    fprintf(fp, "    sw $15, 4($sp)\n"); 
+
+    int i = 56 + 32;
+    int f;
+
+    // floating point
+    fprintf(fp, "    # save floating point\n");
+    for (f = 4; f < 12; f += 2 , i -= 4) {
+        fprintf(fp, "    s.s $f%d, %d($sp)\n", f, i);   
+    }
+    for (f = 16; f < 20; f += 2 , i -= 4) {
+        fprintf(fp, "    s.s $f%d, %d($sp)\n", f, i);   
+    }
+
+    // integer
+    fprintf(fp, "    # save integers\n");
+    for (f = 8; f < 16; f += 1 , i -= 4) {
+        fprintf(fp, "    sw $%d, %d($sp)\n", f, i);
+    }
+
 
 }
 
@@ -451,21 +534,25 @@ genEpilogue (char * name) {
     fprintf(fp, "%s_end:\n", name);
     fprintf(fp, "    # eiplogue\n");        
     fprintf(fp, "%s_epilogue:\n", name);
-    fprintf(fp, "    l.s $f4, 56($sp)\n");   
-    fprintf(fp, "    l.s $f6, 52($sp)\n");   
-    fprintf(fp, "    l.s $f8, 48($sp)\n");   
-    fprintf(fp, "    l.s $f10, 44($sp)\n");   
-    fprintf(fp, "    l.s $f16, 40($sp)\n");   
-    fprintf(fp, "    l.s $f18, 36($sp)\n");  
-    fprintf(fp, "    lw $8, 32($sp)\n");
-    fprintf(fp, "    lw $9, 28($sp)\n");
-    fprintf(fp, "    lw $10, 24($sp)\n");
-    fprintf(fp, "    lw $11, 20($sp)\n");
-    fprintf(fp, "    lw $12, 16($sp)\n");
-    fprintf(fp, "    lw $13, 12($sp)\n");
-    fprintf(fp, "    lw $14, 8($sp)\n");
-    fprintf(fp, "    lw $15, 4($sp)\n");
-    fprintf(fp, "    lw $ra, 4($fp)\n");
+
+    int i = 56 + 32;
+    int f;
+
+    // floating point
+    fprintf(fp, "    # save floating point\n");
+    for (f = 4; f < 12; f += 2 , i -= 4) {
+        fprintf(fp, "    l.s $f%d, %d($sp)\n", f, i);   
+    }
+    for (f = 16; f < 20; f += 2 , i -= 4) {
+        fprintf(fp, "    l.s $f%d, %d($sp)\n", f, i);   
+    }
+
+    // integer
+    fprintf(fp, "    # load integers\n");
+    for (f = 8; f < 16; f += 1 , i -= 4) {
+        fprintf(fp, "    lw $%d, %d($sp)\n", f, i);
+    }
+
     fprintf(fp, "    add $sp, $fp, 4\n");
     fprintf(fp, "    lw $fp, 0($fp)\n");
 
@@ -478,8 +565,9 @@ genEpilogue (char * name) {
 
     // misc data
     fprintf(fp, ".data\n");
-    fprintf(fp, "    %s_framesize: .word %d\n", name, 32 + 24 + localVariableOrder * 4);
+    fprintf(fp, "    %s_framesize: .word %d\n", name, 32 + 24 + localVariableOrder * 4 + 32);
 
+    // parameterNumber = 0;
     currentFunction = NULL;
 }
 
@@ -514,10 +602,13 @@ genIDConst (var_ref * ref) {
     fprintf(fp, "    # variable reference\n");        
     int offset = lookup(ref -> name) -> offset;
     int global = offset == 0;
+    int argument = offset < 0;
     if (ref -> type == INT_) {
         reference = getIReg();
         if (global)
             fprintf(fp, "    lw $%d, var_%s\n", reference.index, ref -> name);
+        else if (argument) 
+            fprintf(fp, "    move $%d, $%d\n", reference.index, -(lookup(ref -> name) -> offset) + 15);
         else
             fprintf(fp, "    lw $%d, %d($fp)\n", reference.index, lookup(ref -> name) -> offset);
 
@@ -525,6 +616,8 @@ genIDConst (var_ref * ref) {
         reference = getFPReg();
         if (global)
             fprintf(fp, "    l.s $f%d, var_%s\n", reference.index, ref -> name);
+        else if (argument) 
+            fprintf(fp, "    # arg $f%d, %d($fp)\n", reference.index, lookup(ref -> name) -> offset);
         else    
             fprintf(fp, "    l.s $f%d, %d($fp)\n", reference.index, lookup(ref -> name) -> offset);
 
@@ -894,7 +987,10 @@ ST_TYPE deal_func_decl(AST_NODE *ptr){
                     printf("error %d: redeclaration of symbol as function, declared previously as %s on line %d\n",ptr->linenumber,printtype(PST->type),PST->line);
                     result=ERROR_;
                 }
-                result=deal_block(ptr->child->sibling->sibling->sibling);
+                genPrologue(ptr -> child -> sibling -> semantic_value.lexeme);
+                genBlock(ptr -> child -> sibling -> semantic_value.lexeme);
+                result = deal_block(ptr -> child -> sibling -> sibling -> sibling);
+                genEpilogue(ptr -> child -> sibling -> semantic_value.lexeme);
                 break;
             case FD_TYPEDEF_PARAM:
             //struct_type ID MK_LPAREN param_list MK_RPAREN MK_LBRACE block MK_RBRACE
@@ -919,16 +1015,17 @@ ST_TYPE deal_func_decl(AST_NODE *ptr){
                 break;
             case FD_VOID_PARAM:
             //VOID ID MK_LPAREN param_list MK_RPAREN MK_LBRACE block MK_RBRACE
+            
                 IS_RETURN = 1;
                                 func_return=VOID_;
                 if((PST=lookup(ptr->child->semantic_value.lexeme))==NULL){
                     PSF->ret_type=VOID_;
                     PL=deal_param_list(ptr->child->sibling);
+                    PSF->PL=PL;
                     while(PL!=NULL){
                         i++;
                         PL=PL->next;
                     }
-                    PSF->PL=PL;
                     PSF->params=i;
                     ptr->child->symptr=insert(ptr->child->semantic_value.lexeme, FUNC_, PSF, 0, ptr->linenumber);
                     
@@ -937,7 +1034,10 @@ ST_TYPE deal_func_decl(AST_NODE *ptr){
                     printf("error %d: redeclaration of symbol as function, declared previously as %s on line %d\n",ptr->linenumber,printtype(PST->type),PST->line);
                     result=ERROR_;
                 }
-                result=deal_block(ptr->child->sibling->sibling);
+                genPrologue(ptr -> child -> semantic_value.lexeme);
+                genBlock(ptr -> child -> semantic_value.lexeme);
+                result = deal_block(ptr -> child -> sibling -> sibling);
+                genEpilogue(ptr -> child -> semantic_value.lexeme);
                 break;
             case FD_TYPE_NONE:;
                 int gen = 0;
@@ -1173,7 +1273,9 @@ ST_TYPE deal_stmt(AST_NODE * ptr){
             }
             else {
                 temp=check_function(ptr->child, ptr->child->sibling);
+                genParameter(ptr->child, temp);
                 genInvocation(ptr -> child -> semantic_value.lexeme);
+
                 result=(temp->type==ERROR_)?ERROR_:ZERO_;
             }
             break;
@@ -1337,14 +1439,22 @@ param_list* deal_param_list(AST_NODE *ptr){
     param_list *temp;
     ptr=ptr->firstborn;
     PL=build_param(ptr->child);
+    // parameterNumber = 1;
     temp=PL;
     ptr=ptr->sibling;
     while(ptr->type==PARAM_LIST){
+        argumentIndex++;
         temp->next=build_param(ptr->child);
         ptr=ptr->sibling;
         temp=temp->next;
+
+        // parameterNumber
+        // parameterNumber++;
+
     }
     temp->next=NULL;
+
+    argumentIndex = 1;
     return PL;
 }
 
@@ -1367,6 +1477,7 @@ param_list* build_param(AST_NODE *ptr){
             //type ID
                 p->type=ptr->child->semantic_value.type;
                 ptr->child->sibling->symptr=insert(ptr->child->sibling->semantic_value.lexeme, p->type, NULL, 0, ptr->linenumber);
+                ptr->child->sibling->symptr -> offset = -argumentIndex;
                 break;
             case P_TYPEDEF_NONE:
             //struct_type ID
@@ -1933,6 +2044,7 @@ var_ref* deal_factor(AST_NODE* ptr){
         case F_ID:
         //ID MK_LPAREN relop_expr_list MK_RPAREN
             op = check_function(ptr->child,ptr->child->sibling);
+            genParameter(ptr->child, op);
             op -> reference = genInvocation(ptr -> child -> semantic_value.lexeme);
             op -> type = (op -> reference.type == IReg) ? INT_ : FLOAT_;
             break;
@@ -1943,6 +2055,7 @@ var_ref* deal_factor(AST_NODE* ptr){
                 printf("error %d: unary minus applied to non scalar expression\n",ptr->linenumber);
                 op->type=ERROR_;
             }
+            genParameter(ptr->child, op);
             op -> reference = genInvocation(ptr -> child -> semantic_value.lexeme);
             op -> reference = genNeg(op);
             break;
@@ -1953,6 +2066,7 @@ var_ref* deal_factor(AST_NODE* ptr){
                 printf("error %d: operator ! applied to non integer expression\n",ptr->linenumber);
                 op->type=ERROR_;
             }
+            genParameter(ptr->child, op);
             op -> reference = genInvocation(ptr -> child -> semantic_value.lexeme);
             op -> reference = genNot(op);
             break;
@@ -2082,13 +2196,14 @@ var_ref* deal_var_ref(AST_NODE * ptr){
     
 
 
+
 var_ref* check_function(AST_NODE *id, AST_NODE* list){         //list is RELOP_EXPR_LIST
     symtab *PST;
     int i=0;
     var_ref* temp=ZERO_;
     AST_NODE *temp1;
     AST_NODE *temp2;
-    temp= (var_ref*)malloc(sizeof(var_ref));
+    temp = (var_ref*)malloc(sizeof(var_ref));
     if (list->child->type==NONEMPTY_RELOP_EXPR_LIST){   //param list not NULL
         temp1=list->child->firstborn;    //to NONEMPTY_RELOP_EXPR_LIST
         temp2=list->child->firstborn;    //to NONEMPTY_RELOP_EXPR_LIST
@@ -2119,7 +2234,6 @@ var_ref* check_function(AST_NODE *id, AST_NODE* list){         //list is RELOP_E
             y=x->PL;
             i=0;
             var_ref* generate;
-            
             temp->type=PST->symtab_u.st_func->ret_type;
             id->symptr = PST;
             
@@ -2132,6 +2246,12 @@ var_ref* check_function(AST_NODE *id, AST_NODE* list){         //list is RELOP_E
                     temp->type= ERROR_;
                     continue;
                 }
+
+                Parameter * parameter = malloc(sizeof(Parameter));
+                parameter -> reference = generate -> reference;
+                parameter -> cons = (void *)temp -> parameter;
+                temp -> parameter = parameter;
+                // printf("added\n");
                 
                 switch(y->PPAR->type){
                     case INT_:

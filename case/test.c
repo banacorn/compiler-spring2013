@@ -1,4 +1,7 @@
+void add (int a, int b, int c) {
+    write(a + b);
+}
+
 void main () {
-    int a = 4.5 + 3;
-    write(a);   
+    add(1, 2, 3);
 }

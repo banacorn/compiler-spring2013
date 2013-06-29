@@ -37,13 +37,17 @@ typedef struct {
 } CON_Type;
 
 typedef enum { IReg, FPReg, StrLit } ReferenceType;
-typedef struct{
+typedef struct {
     ReferenceType type;
     int index;
 } Reference;   
 
-
-
+// typedef enum { Cons, Nil } ParameterType;
+typedef struct {
+    Reference reference;
+    // ParameterType type;
+    struct Parameter * cons;
+} Parameter;
 
 struct AST_NODE{
     struct AST_NODE *parent;
@@ -156,6 +160,7 @@ typedef struct{
         char *type_name;
         Type_arr *arr_info; 
     }var_ref_u;
+    Parameter * parameter;
     Reference reference;
 }var_ref;   
 
