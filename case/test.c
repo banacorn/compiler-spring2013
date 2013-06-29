@@ -1,19 +1,11 @@
-int a;
-
-void g () {
-    a = a - 1;
-    write(a);
-
+int fac (int a) {
+    if (a == 0) {
+        return 1;
+    } else {
+        return a * fac(a - 1);
+    }
 }
 
-void f () {
-    a = a - 1;
-    write(a);
-    g();
-}
-
-void main(){
-    a = 5;
-    f();
-    return ;
+void main () {
+    write(fac(5));
 }
