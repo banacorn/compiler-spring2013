@@ -607,7 +607,8 @@ genIDConst (var_ref * ref) {
     int offset = lookup(ref -> name) -> offset;
     int global = offset == 0;
     int argument = offset > 0;
-
+    if (argument)
+        printf("argument\n");
     if (ref -> type == INT_) {
         reference = getIReg();
         if (global)
