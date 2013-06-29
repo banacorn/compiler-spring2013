@@ -43,6 +43,7 @@ int labelIndex = 0;
 // currentArray
 Array currentArray[10];
 int currentArrayDim = 0;
+ST_TYPE currentArrayType;
 
 // currentFunction
 char * currentFunction;
@@ -51,7 +52,7 @@ char * currentFunction;
 Parameter * parameters;
 
 // control statement labels
-int whileIndex = 0;
+int whileIndex[10];
 int ifIndex = 0;
 int ifElseIndex = 0;
 
@@ -209,7 +210,9 @@ printTab (symtab * tab) {
     printf("    name: %s\n", tab -> lexeme);
     if (tab -> type == FUNC_)
         printf("    return type: %d\n", tab -> symtab_u.st_func -> ret_type);
-    printf("    scope: %d\n", tab -> scope);
+    else
+        printf("    type: %d\n", tab -> type);
+    printf("    global: %d\n", tab -> scope == 0);
     printf("    offset: %d\n", tab -> offset);
     printf("    register: %d\n", tab -> reference.index);
     printf("------------------\n");
@@ -239,6 +242,11 @@ printReference (Reference reference) {
 
 void init () {
     fp = fopen(OUTPUT, "w");
+
+    int i = 0;
+    for (i = 0; i < 10; i++) {
+        whileIndex[i] = 0;
+    }
 }
 
 
@@ -683,6 +691,10 @@ genIDConst (var_ref * ref) {
             fprintf(fp, "    l.s $f%d, var_%s\n", reference.index, ref -> name);
         else if (argument) {
             fprintf(fp, "    mov.s $f%d, $f%d\n", reference.index, offset * 2 + 18);
+        } else if (array) {
+            fprintf(fp, "    sub $%d, $fp, $%d\n", offsetRegister, offsetRegister);
+            fprintf(fp, "    addi $%d, $%d, %d\n", offsetRegister, offsetRegister, offset);
+            fprintf(fp, "    l.s $f%d, 0($%d)\n", reference.index, offsetRegister);
         } else    
             fprintf(fp, "    l.s $f%d, %d($fp)\n", reference.index, offset);
 
@@ -875,14 +887,30 @@ genAssignment (var_ref * leftRef, Reference rightReference) {
     int offset = tab -> offset;
     int global = offset == 0;
 
-    // printTab(tab);
-
     Reference new;
     if (tab -> type == ARR_) {
         int offsetRegister = tab -> reference.index;
         fprintf(fp, "    sub $%d, $fp, $%d\n", offsetRegister, offsetRegister);
         fprintf(fp, "    addi $%d, $%d, %d\n", offsetRegister, offsetRegister, offset);
-        fprintf(fp, "    sw $%d, 0($%d)\n", rightReference.index, offsetRegister);
+
+        if (currentArrayType == INT_ && rightReference.type == IReg)
+            fprintf(fp, "    sw $%d, 0($%d)\n", rightReference.index, offsetRegister);
+        else if (currentArrayType == INT_ && rightReference.type == FPReg) {
+            new = getIReg();
+            printf("fuck\n");
+            fprintf(fp, "    cvt.w.s $f%d, $f%d\n", rightReference.index, rightReference.index);
+            fprintf(fp, "    mfc1 $%d, $f%d\n", new.index, rightReference.index);
+            fprintf(fp, "    sw $%d, 0($%d)\n", new.index, offsetRegister);
+        } else if (currentArrayType == FLOAT_ && rightReference.type == FPReg) {
+            fprintf(fp, "    s.s $f%d, 0($%d)\n", rightReference.index, offsetRegister);
+        } else if (currentArrayType == FLOAT_ && rightReference.type == IReg) {
+            new = getFPReg();
+            fprintf(fp, "    mtc1 $%d, $f%d\n", rightReference.index, new.index);
+            fprintf(fp, "    cvt.s.w $f%d, $f%d\n", new.index, new.index);
+            fprintf(fp, "    s.s $f%d, 0($%d)\n", new.index, offsetRegister);
+        }
+
+
     } else if (tab -> type == INT_ && rightReference.type == IReg) {
         if (global)
             fprintf(fp, "    sw $%d, var_%s\n", rightReference.index, leftRef -> name);
@@ -921,7 +949,7 @@ genAssignment (var_ref * leftRef, Reference rightReference) {
 void
 genWhileHead () {
     fprintf(fp, "    # while\n");        
-    fprintf(fp, "while_%d:\n", whileIndex);
+    fprintf(fp, "while_%d_%d:\n", scope, whileIndex[scope]);
     
 }
 
@@ -929,15 +957,14 @@ void
 genWhileOpen (var_ref * test) {
     Reference reference = test -> reference;
     fprintf(fp, "    move $t0, $%d\n", reference.index);
-    fprintf(fp, "    beqz $t0, while_%d_exit\n", whileIndex);
+    fprintf(fp, "    beqz $t0, while_%d_%d_exit\n", scope, whileIndex[scope]);
 }
 
 void 
 genWhileClose () {
-    fprintf(fp, "    j while_%d\n", whileIndex);
-    fprintf(fp, "while_%d_exit:\n", whileIndex);
-    whileIndex++;
-
+    fprintf(fp, "    j while_%d_%d\n", scope, whileIndex[scope]);
+    fprintf(fp, "while_%d_%d_exit:\n", scope, whileIndex[scope]);
+    whileIndex[scope]++;
 }
 
 void
@@ -2281,7 +2308,9 @@ var_ref* deal_var_ref(AST_NODE * ptr){
                             temp->type=STR_VAR_;
                             temp->var_ref_u.type_name=temp->var_ref_u.arr_info->type_name;
                         }
+                        
                         genArrayReference(temp);
+                        currentArrayType = temp -> type;
                     }
                 }
                 return temp;
