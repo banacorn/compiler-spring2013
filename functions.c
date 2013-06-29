@@ -109,7 +109,7 @@ getIReg () {
     r.type = IReg;
     r.index = iRegisterIndex;
     iRegisterIndex++;
-    if (iRegisterIndex == 16)
+    if (iRegisterIndex == 20)
         iRegisterIndex = 8;
     return r;
 }
@@ -121,7 +121,7 @@ getFPReg () {
     r.type = FPReg;
     r.index = fpRegisterIndex;
     fpRegisterIndex += 2;
-    if (fpRegisterIndex == 16)
+    if (fpRegisterIndex == 20)
         fpRegisterIndex = 4;
     return r;
 }
@@ -508,7 +508,7 @@ genPrologue (char * name) {
 
     // floating point
     fprintf(fp, "    # save floating point\n");
-    for (f = 4; f < 16; f += 2 , i -= 4) {
+    for (f = 4; f < 20; f += 2 , i -= 4) {
         fprintf(fp, "    s.s $f%d, %d($sp)\n", f, i);   
     }
 
@@ -533,7 +533,7 @@ genEpilogue (char * name) {
 
     // floating point
     fprintf(fp, "    # save floating point\n");
-    for (f = 4; f < 16; f += 2 , i -= 4) {
+    for (f = 4; f < 20; f += 2 , i -= 4) {
         fprintf(fp, "    l.s $f%d, %d($sp)\n", f, i);   
     }
 
