@@ -144,15 +144,6 @@ toReg (Reference r) {
     }
 }
 
-
-// int getRegister () {
-//     int n = registerIndex;
-//     registerIndex++;
-//     if (registerIndex == 16)
-//         registerIndex = 8;
-//     return n;
-// }
-
 void
 insertLiteralString (char * string, int index) {
 
@@ -627,8 +618,8 @@ genIDConst (var_ref * ref) {
             fprintf(fp, "    l.s $f%d, var_%s\n", reference.index, ref -> name);
         else if (argument) {
             printf("%d\n", offset);
-            fprintf(fp, "    s.s $f%d, 4($sp)\n", reference.index); //, -(lookup(ref -> name) -> offset) + 15);
             fprintf(fp, "    lw $%d, 4($sp)\n", lookup(ref -> name) -> offset + 15);
+            fprintf(fp, "    s.s $f%d, 4($sp)\n", reference.index); //, -(lookup(ref -> name) -> offset) + 15);
             // fprintf(fp, "    mov.s $f%d, $%d\n", reference.index, -(lookup(ref -> name) -> offset) + 15);
         } else    
             fprintf(fp, "    l.s $f%d, %d($fp)\n", reference.index, lookup(ref -> name) -> offset);
