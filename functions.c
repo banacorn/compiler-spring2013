@@ -8,7 +8,7 @@
 #define OUTPUT "output.s"
 #define GLOBAL 0
 
-#define BASE_FRAME_SIZE 92
+#define BASE_FRAME_SIZE 96
 void init();
 
 typedef struct List {
@@ -367,8 +367,7 @@ genSaveParameter () {
     fprintf(fp, "    # save parameters\n");
     int i;
     for (i = 0; i < 8; i++) {
-        fprintf(fp, "    sw $%d, %d($sp)\n", 23 - i, 32 - i * 4 + 4);
-
+        fprintf(fp, "    sw $%d, %d($sp)\n", 23 - i, 32 - i * 4);
     }
 }
 
@@ -377,7 +376,7 @@ genRestoreParameter () {
     // parameters
     int i;
     for (i = 0; i < 8; i++) {
-        fprintf(fp, "    lw $%d, %d($sp)\n", 23 - i, 32 - i * 4 + 4);
+        fprintf(fp, "    lw $%d, %d($sp)\n", 23 - i, 32 - i * 4);
     }
 }
 
@@ -413,29 +412,6 @@ genParameter (AST_NODE * id, var_ref * ref) {
         PL = PL -> next;
         i++;
     }
-    // printTab(id -> symptr);
-    // Parameter * parameter = parameters;
-    // int i = 0;
-    // while (parameter) {
-
-    //     printReference(parameter -> reference);
-    //     // if (parameter -> reference.type == IReg) {
-    //     //     fprintf(fp, "    move $a%d, $%d, \n", i, parameter -> reference.index);
-    //     // } else {
-    //     //     fprintf(fp, "    mov.s $a%d, $f%d, \n", i, parameter -> reference.index);
-    //     // }
-    //     parameter = parameter -> cons;
-    //     i++;
-    // }
-
-
-    // free parameter list
-    // Parameter * dummy;
-    // while (parameters) {
-    //     dummy = parameters;
-    //     parameters = (void *)parameters -> cons;
-    //     free(dummy);
-    // }
 }
 
 Reference
