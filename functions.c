@@ -399,6 +399,7 @@ void
 genParameter (AST_NODE * id, var_ref * ref) {
     genSaveParameter();
 
+    Reference temp;
     ST_func * funcStruct = id -> symptr -> symtab_u.st_func; 
     param_list * PL = funcStruct -> PL;
     Parameter * parameter = ref -> parameter;
@@ -408,10 +409,17 @@ genParameter (AST_NODE * id, var_ref * ref) {
 
     fprintf(fp, "    # moving parameters\n");
     while (PL) {
-        if (parameter -> reference.type == IReg) {
+        ST_TYPE parameterType = PL -> PPAR -> type;
+        if (parameterType == INT_ && parameter -> reference.type == IReg) {
             fprintf(fp, "    move $%d, $%d \n", -i + 15 + parameterNumber, parameter -> reference.index);
-        } else {
+        } else if (parameterType == FLOAT_ && parameter -> reference.type == IReg) {
+            temp = genInttoFloat(parameter -> reference);
+            fprintf(fp, "    mov.s $%d, $f%d \n", -i + 15 + parameterNumber, temp.index);
+        } else if (parameterType == FLOAT_ && parameter -> reference.type == FPReg) {
             fprintf(fp, "    mov.s $%d, $f%d \n", -i + 15 + parameterNumber, parameter -> reference.index);
+        } else if (parameterType == INT_ && parameter -> reference.type == FPReg) {
+            temp = genFloattoInt(parameter -> reference);
+            fprintf(fp, "    move $%d, $%d \n", -i + 15 + parameterNumber, temp.index);
         }
         parameter = (void *)parameter -> cons;
         PL = PL -> next;

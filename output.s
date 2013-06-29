@@ -89,10 +89,10 @@ main:
 main_begin:
     # Int const
     li $11, 1
+    # Float const
+    li.s $f4, 2.500000
     # Int const
-    li $12, 2
-    # Int const
-    li $13, 3
+    li $12, 3
     # save parameters
     sw $23, 32($sp)
     sw $22, 28($sp)
@@ -103,8 +103,11 @@ main_begin:
     sw $17, 8($sp)
     sw $16, 4($sp)
     # moving parameters
-    move $18, $13 
-    move $17, $12 
+    move $18, $12 
+    # Float -> Int conversion 
+    cvt.w.s $f4, $f4
+    mfc1 $13, $f4
+    move $17, $13 
     move $16, $11 
     # function call
     jal add_entry
@@ -116,7 +119,7 @@ main_begin:
     lw $18, 12($sp)
     lw $17, 8($sp)
     lw $16, 4($sp)
-    mov.s $f4, $f0
+    mov.s $f6, $f0
 main_end:
     # eiplogue
 main_epilogue:

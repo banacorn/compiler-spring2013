@@ -3,5 +3,5 @@ void add (int a, int b, int c) {
 }
 
 void main () {
-    add(1, 2, 3);
+    add(1, 2.5, 3);
 }
