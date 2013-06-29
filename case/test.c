@@ -1,10 +1,8 @@
-void main(){
-    float a,b,c;
-    a=fread();
-    b = 3.0;
-    c = 6.0;
-    a = a*3+b/6.0;
-    write(a);
-    write("\n");
-    return ;
-} 
+float add (float a, float b, float c, int d, int e) {
+    return a + b + c + d + e;
+}
+void main () {
+    float f;
+    f = add(1, 2.5, 4.5, 5, 6);
+    write(f);
+}

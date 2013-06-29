@@ -8,7 +8,7 @@
 #define OUTPUT "output.s"
 #define GLOBAL 0
 
-#define BASE_FRAME_SIZE 96
+#define BASE_FRAME_SIZE 120
 void init();
 
 typedef struct List {
@@ -26,7 +26,8 @@ FILE * fp;
 int localVariableOrder;
 int globalVariableInitialized;
 int parameterNumber = 4;
-int argumentIndex = 1;
+int argumentIndexInt = 1;
+int argumentIndexFloat = 1;
 ST_TYPE LHTYPE;
 
 // .data
@@ -365,7 +366,10 @@ void
 genSaveParameter () {
     // parameters
     fprintf(fp, "    # save parameters\n");
-    int i;
+    int i, f;
+    for (f = 0; f < 6; f++) {
+        fprintf(fp, "    s.s $f%d, %d($sp)\n", 30 - f * 2, 56 - f * 4);
+    }
     for (i = 0; i < 8; i++) {
         fprintf(fp, "    sw $%d, %d($sp)\n", 23 - i, 32 - i * 4);
     }
@@ -374,7 +378,10 @@ genSaveParameter () {
 void
 genRestoreParameter () {
     // parameters
-    int i;
+    int i, f;
+    for (f = 0; f < 6; f++) {
+        fprintf(fp, "    l.s $f%d, %d($sp)\n", 30 - f * 2, 56 - f * 4);
+    }
     for (i = 0; i < 8; i++) {
         fprintf(fp, "    lw $%d, %d($sp)\n", 23 - i, 32 - i * 4);
     }
@@ -388,29 +395,48 @@ genParameter (AST_NODE * id, var_ref * ref) {
     ST_func * funcStruct = id -> symptr -> symtab_u.st_func; 
     param_list * PL = funcStruct -> PL;
     Parameter * parameter = ref -> parameter;
-    int i = 0;
+
+    int i = 0, f = 0, n = 0, m;
 
     int parameterNumber = funcStruct -> params;
 
     fprintf(fp, "    # moving parameters\n");
     while (PL) {
+        parameter = ref -> parameter;
         ST_TYPE parameterType = PL -> PPAR -> type;
-        if (parameterType == INT_ && parameter -> reference.type == IReg) {
-            fprintf(fp, "    move $%d, $%d \n", -i + 15 + parameterNumber, parameter -> reference.index);
-        } else if (parameterType == FLOAT_ && parameter -> reference.type == IReg) {
-            temp = genInttoFloat(parameter -> reference);
-            fprintf(fp, "    mov.s $f%d, $f%d \n", -i + 15 + parameterNumber, temp.index);
-        } else if (parameterType == FLOAT_ && parameter -> reference.type == FPReg) {
-            fprintf(fp, "    s.s $f%d, 4($sp) \n", parameter -> reference.index);
-            fprintf(fp, "    lw $%d, 4($sp) \n", -i + 15 + parameterNumber);
-            // fprintf(fp, "    move $%d, $f%d \n", -i + 15 + parameterNumber, parameter -> reference.index);
-        } else if (parameterType == INT_ && parameter -> reference.type == FPReg) {
-            temp = genFloattoInt(parameter -> reference);
-            fprintf(fp, "    move $%d, $%d \n", -i + 15 + parameterNumber, temp.index);
+
+        printf("type: %d\n", parameterType);
+
+        // rolling
+        for (m = 1; m < parameterNumber - n; m++) {
+            parameter = (void *)parameter -> cons;
         }
-        parameter = (void *)parameter -> cons;
+        printReference(parameter -> reference);
+
+        if (parameterType == INT_) {
+            fprintf(fp, "    move $%d, $%d \n", i + 16, parameter -> reference.index);
+            i++;
+        } else if (parameterType == FLOAT_) {
+            fprintf(fp, "    mov.s $f%d, $f%d \n", f * 2 + 20, parameter -> reference.index);
+            f++;
+        }
+
+
+        // if (parameterType == INT_ && parameter -> reference.type == IReg) {
+        //     fprintf(fp, "    move $%d, $%d \n", -i + 15 + parameterNumber, parameter -> reference.index);
+        // } else if (parameterType == FLOAT_ && parameter -> reference.type == IReg) {
+        //     temp = genInttoFloat(parameter -> reference);
+        //     fprintf(fp, "    mov.s $f%d, $f%d \n", -i + 15 + parameterNumber, temp.index);
+        // } else if (parameterType == FLOAT_ && parameter -> reference.type == FPReg) {
+        //     fprintf(fp, "    s.s $f%d, 4($sp) \n", parameter -> reference.index);
+        //     fprintf(fp, "    lw $%d, 4($sp) \n", -i + 15 + parameterNumber);
+        //     // fprintf(fp, "    move $%d, $f%d \n", -i + 15 + parameterNumber, parameter -> reference.index);
+        // } else if (parameterType == INT_ && parameter -> reference.type == FPReg) {
+        //     temp = genFloattoInt(parameter -> reference);
+        //     fprintf(fp, "    move $%d, $%d \n", -i + 15 + parameterNumber, temp.index);
+        // }
         PL = PL -> next;
-        i++;
+        n++;
     }
 }
 
@@ -571,6 +597,7 @@ genIDConst (var_ref * ref) {
     int offset = lookup(ref -> name) -> offset;
     int global = offset == 0;
     int argument = offset > 0;
+
     if (ref -> type == INT_) {
         reference = getIReg();
         if (global)
@@ -585,10 +612,7 @@ genIDConst (var_ref * ref) {
         if (global)
             fprintf(fp, "    l.s $f%d, var_%s\n", reference.index, ref -> name);
         else if (argument) {
-            printf("%d\n", offset);
-            fprintf(fp, "    lw $%d, 4($sp)\n", lookup(ref -> name) -> offset + 15);
-            fprintf(fp, "    s.s $f%d, 4($sp)\n", reference.index); //, -(lookup(ref -> name) -> offset) + 15);
-            // fprintf(fp, "    mov.s $f%d, $%d\n", reference.index, -(lookup(ref -> name) -> offset) + 15);
+            fprintf(fp, "    mov.s $f%d, $f%d\n", reference.index, (lookup(ref -> name) -> offset) * 2 + 18);
         } else    
             fprintf(fp, "    l.s $f%d, %d($fp)\n", reference.index, lookup(ref -> name) -> offset);
 
@@ -1413,14 +1437,24 @@ param_list* deal_param_list(AST_NODE *ptr){
     param_list *temp;
     ptr=ptr->firstborn;
     PL=build_param(ptr->child);
-    // parameterNumber = 1;
     temp=PL;
+    if (temp -> PPAR -> type == INT_) {
+        argumentIndexInt++;
+    } else {
+        argumentIndexFloat++;
+    }
+    // parameterNumber = 1;
     ptr=ptr->sibling;
     while(ptr->type==PARAM_LIST){
-        argumentIndex++;
+        // argumentIndex++;
         temp->next=build_param(ptr->child);
         ptr=ptr->sibling;
         temp=temp->next;
+        if (temp -> PPAR -> type == INT_) {
+            argumentIndexInt++;
+        } else {
+            argumentIndexFloat++;
+        }
 
         // parameterNumber
         // parameterNumber++;
@@ -1428,7 +1462,8 @@ param_list* deal_param_list(AST_NODE *ptr){
     }
     temp->next=NULL;
 
-    argumentIndex = 1;
+    argumentIndexInt = 1;
+    argumentIndexFloat = 1;
     return PL;
 }
 
@@ -1451,7 +1486,13 @@ param_list* build_param(AST_NODE *ptr){
             //type ID
                 p->type=ptr->child->semantic_value.type;
                 ptr->child->sibling->symptr=insert(ptr->child->sibling->semantic_value.lexeme, p->type, NULL, 0, ptr->linenumber);
-                ptr->child->sibling->symptr -> offset = argumentIndex;
+                if (p -> type == INT_) {
+                    // printf("int offset %d\n", argumentIndexInt);
+                    ptr->child->sibling->symptr -> offset = argumentIndexInt;
+                } else {
+                    // printf("float offset %d\n", argumentIndexFloat);
+                    ptr->child->sibling->symptr -> offset = argumentIndexFloat;
+                }
                 break;
             case P_TYPEDEF_NONE:
             //struct_type ID
