@@ -411,13 +411,25 @@ genParameter (AST_NODE * id, var_ref * ref) {
         for (m = 1; m < parameterNumber - n; m++) {
             parameter = (void *)parameter -> cons;
         }
-        printReference(parameter -> reference);
-
         if (parameterType == INT_) {
-            fprintf(fp, "    move $%d, $%d \n", i + 16, parameter -> reference.index);
+
+            if (parameter -> reference.type == FPReg) {
+                temp = genFloattoInt(parameter -> reference);
+                fprintf(fp, "    move $%d, $%d \n", i + 16, temp.index);
+            } else {
+                fprintf(fp, "    move $%d, $%d \n", i + 16, parameter -> reference.index);
+                
+            }
             i++;
         } else if (parameterType == FLOAT_) {
-            fprintf(fp, "    mov.s $f%d, $f%d \n", f * 2 + 20, parameter -> reference.index);
+
+            if (parameter -> reference.type == IReg) {
+                temp = genInttoFloat(parameter -> reference);
+                fprintf(fp, "    mov.s $f%d, $f%d \n", f * 2 + 20, temp.index);
+            } else {
+                fprintf(fp, "    mov.s $f%d, $f%d \n", f * 2 + 20, parameter -> reference.index);
+            }
+
             f++;
         }
 

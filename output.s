@@ -116,14 +116,14 @@ main:
 main_begin:
     # Int const
     li $10, 1
-    # Float const
-    li.s $f6, 2.500000
-    # Float const
-    li.s $f8, 4.500000
     # Int const
-    li $11, 5
+    li $11, 2
     # Int const
-    li $12, 6
+    li $12, 3
+    # Float const
+    li.s $f6, 4.500000
+    # Float const
+    li.s $f8, 5.600000
     # save parameters
     s.s $f30, 56($sp)
     s.s $f28, 52($sp)
@@ -140,11 +140,26 @@ main_begin:
     sw $17, 8($sp)
     sw $16, 4($sp)
     # moving parameters
+    # Int -> Float conversion 
+    mtc1 $10, $f10
+    cvt.s.w $f10, $f10
     mov.s $f20, $f10 
-    mov.s $f22, $f6 
-    mov.s $f24, $f8 
-    move $16, $11 
-    move $17, $12 
+    # Int -> Float conversion 
+    mtc1 $11, $f12
+    cvt.s.w $f12, $f12
+    mov.s $f22, $f12 
+    # Int -> Float conversion 
+    mtc1 $12, $f14
+    cvt.s.w $f14, $f14
+    mov.s $f24, $f14 
+    # Float -> Int conversion 
+    cvt.w.s $f6, $f6
+    mfc1 $13, $f6
+    move $16, $13 
+    # Float -> Int conversion 
+    cvt.w.s $f8, $f8
+    mfc1 $14, $f8
+    move $17, $14 
     # function call
     jal add_entry
     l.s $f30, 56($sp)
@@ -161,14 +176,14 @@ main_begin:
     lw $18, 12($sp)
     lw $17, 8($sp)
     lw $16, 4($sp)
-    mov.s $f10, $f0
+    mov.s $f16, $f0
     # assignment
-    s.s $f10, -4($fp)
+    s.s $f16, -4($fp)
     # variable reference
-    l.s $f12, -4($fp)
+    l.s $f18, -4($fp)
     # write
     li $v0, 2
-    mov.s $f12, $f12
+    mov.s $f12, $f18
     syscall
 main_end:
     # eiplogue
