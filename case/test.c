@@ -1,7 +1,19 @@
-void add (int a, float b, int c) {
-    write(a + b);
+int a;
+
+void g () {
+    a = a - 1;
+    write(a);
+
 }
 
-void main () {
-    add(1, 2.5, 3);
+void f () {
+    a = a - 1;
+    write(a);
+    g();
+}
+
+void main(){
+    a = 5;
+    f();
+    return ;
 }

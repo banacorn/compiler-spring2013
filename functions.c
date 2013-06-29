@@ -8,6 +8,7 @@
 #define OUTPUT "output.s"
 #define GLOBAL 0
 
+#define BASE_FRAME_SIZE 92
 void init();
 
 typedef struct List {
@@ -155,10 +156,6 @@ toReg (Reference r) {
 void
 insertLiteralString (char * string, int index) {
 
-    if (!literalStringList) {
-        literalStringList = malloc(sizeof(List));
-    }
-
     List * l = malloc(sizeof(List));
     l -> data = string;
     l -> cons = literalStringList;
@@ -170,6 +167,7 @@ void
 genLiteralString () {
     List * l = literalStringList;
     while (l) {
+        // printf("%d %p %p\n", l -> index, l -> data, l -> cons);
         if (l -> data) {
             fprintf(fp, "    m%d: .asciiz %s\n", l -> index, l -> data);
         }
@@ -380,7 +378,7 @@ genSaveParameter () {
     fprintf(fp, "    # save parameters\n");
     int i;
     for (i = 0; i < 8; i++) {
-        fprintf(fp, "    sw $%d, %d($sp)\n", 23 - i, 32 - i * 4);
+        fprintf(fp, "    sw $%d, %d($sp)\n", 23 - i, 32 - i * 4 + 4);
 
     }
 }
@@ -390,8 +388,7 @@ genRestoreParameter () {
     // parameters
     int i;
     for (i = 0; i < 8; i++) {
-        fprintf(fp, "    lw $%d, %d($sp)\n", 23 - i, 32 - i * 4);
-
+        fprintf(fp, "    lw $%d, %d($sp)\n", 23 - i, 32 - i * 4 + 4);
     }
 }
 
@@ -414,9 +411,11 @@ genParameter (AST_NODE * id, var_ref * ref) {
             fprintf(fp, "    move $%d, $%d \n", -i + 15 + parameterNumber, parameter -> reference.index);
         } else if (parameterType == FLOAT_ && parameter -> reference.type == IReg) {
             temp = genInttoFloat(parameter -> reference);
-            fprintf(fp, "    mov.s $%d, $f%d \n", -i + 15 + parameterNumber, temp.index);
+            fprintf(fp, "    mov.s $f%d, $f%d \n", -i + 15 + parameterNumber, temp.index);
         } else if (parameterType == FLOAT_ && parameter -> reference.type == FPReg) {
-            fprintf(fp, "    mov.s $%d, $f%d \n", -i + 15 + parameterNumber, parameter -> reference.index);
+            fprintf(fp, "    s.s $f%d, 4($sp) \n", parameter -> reference.index);
+            fprintf(fp, "    lw $%d, 4($sp) \n", -i + 15 + parameterNumber);
+            // fprintf(fp, "    move $%d, $f%d \n", -i + 15 + parameterNumber, parameter -> reference.index);
         } else if (parameterType == INT_ && parameter -> reference.type == FPReg) {
             temp = genFloattoInt(parameter -> reference);
             fprintf(fp, "    move $%d, $%d \n", -i + 15 + parameterNumber, temp.index);
@@ -515,7 +514,7 @@ genPrologue (char * name) {
     fprintf(fp, "    lw $2, %s_framesize\n", name);
     fprintf(fp, "    sub $sp, $sp, $2\n");
 
-    int i = 56 + 32;
+    int i = BASE_FRAME_SIZE;
     int f;
 
     // floating point
@@ -543,7 +542,7 @@ genEpilogue (char * name) {
     fprintf(fp, "    # eiplogue\n");        
     fprintf(fp, "%s_epilogue:\n", name);
 
-    int i = 56 + 32;
+    int i = BASE_FRAME_SIZE;
     int f;
 
     // floating point
@@ -561,6 +560,7 @@ genEpilogue (char * name) {
         fprintf(fp, "    lw $%d, %d($sp)\n", f, i);
     }
 
+    fprintf(fp, "    lw $ra, 4($fp)\n");
     fprintf(fp, "    add $sp, $fp, 4\n");
     fprintf(fp, "    lw $fp, 0($fp)\n");
 
@@ -573,7 +573,8 @@ genEpilogue (char * name) {
 
     // misc data
     fprintf(fp, ".data\n");
-    fprintf(fp, "    %s_framesize: .word %d\n", name, 32 + 24 + localVariableOrder * 4 + 32);
+    fprintf(fp, "    %s_framesize: .word %d\n", name, BASE_FRAME_SIZE + localVariableOrder * 4);
+
 
     // parameterNumber = 0;
     currentFunction = NULL;
@@ -610,13 +611,13 @@ genIDConst (var_ref * ref) {
     fprintf(fp, "    # variable reference\n");        
     int offset = lookup(ref -> name) -> offset;
     int global = offset == 0;
-    int argument = offset < 0;
+    int argument = offset > 0;
     if (ref -> type == INT_) {
         reference = getIReg();
         if (global)
             fprintf(fp, "    lw $%d, var_%s\n", reference.index, ref -> name);
-        else if (argument) 
-            fprintf(fp, "    move $%d, $%d\n", reference.index, -(lookup(ref -> name) -> offset) + 15);
+        else if (argument)
+            fprintf(fp, "    move $%d, $%d\n", reference.index, lookup(ref -> name) -> offset + 15);
         else
             fprintf(fp, "    lw $%d, %d($fp)\n", reference.index, lookup(ref -> name) -> offset);
 
@@ -624,9 +625,12 @@ genIDConst (var_ref * ref) {
         reference = getFPReg();
         if (global)
             fprintf(fp, "    l.s $f%d, var_%s\n", reference.index, ref -> name);
-        else if (argument) 
-            fprintf(fp, "    # arg $f%d, %d($fp)\n", reference.index, lookup(ref -> name) -> offset);
-        else    
+        else if (argument) {
+            printf("%d\n", offset);
+            fprintf(fp, "    s.s $f%d, 4($sp)\n", reference.index); //, -(lookup(ref -> name) -> offset) + 15);
+            fprintf(fp, "    lw $%d, 4($sp)\n", lookup(ref -> name) -> offset + 15);
+            // fprintf(fp, "    mov.s $f%d, $%d\n", reference.index, -(lookup(ref -> name) -> offset) + 15);
+        } else    
             fprintf(fp, "    l.s $f%d, %d($fp)\n", reference.index, lookup(ref -> name) -> offset);
 
     }
@@ -1222,6 +1226,8 @@ ST_TYPE deal_stmt(AST_NODE * ptr){
             var_ref * left = deal_var_ref(ptr -> child);
             LHTYPE = left -> type;
             var_ref * right = deal_relop_expr(ptr -> child -> sibling);
+
+            
             genAssignment(left -> name, right -> reference);
 
             result= stmt_assign_ex(left, right, ptr->linenumber);
@@ -1293,6 +1299,7 @@ ST_TYPE deal_stmt(AST_NODE * ptr){
             break;
         case STMT_RETURN_VOID:
         //RETURN MK_SEMICOLON
+        
             if ((func_return!=ERROR_)&&(func_return!=VOID_)){
                 printf("error %d: returning nothing from function expecting to return %s\n",ptr->linenumber,printtype(func_return));
                 result=ERROR_;
@@ -1485,7 +1492,7 @@ param_list* build_param(AST_NODE *ptr){
             //type ID
                 p->type=ptr->child->semantic_value.type;
                 ptr->child->sibling->symptr=insert(ptr->child->sibling->semantic_value.lexeme, p->type, NULL, 0, ptr->linenumber);
-                ptr->child->sibling->symptr -> offset = -argumentIndex;
+                ptr->child->sibling->symptr -> offset = argumentIndex;
                 break;
             case P_TYPEDEF_NONE:
             //struct_type ID
@@ -1774,6 +1781,8 @@ var_ref* deal_relop_expr(AST_NODE* ptr){
     var_ref* op2;
     if (ptr->semantic_value.op_type==OPT_NONE){
     //relop_term
+        
+        
         var_ref * t = deal_relop_term(ptr->child);
         // printf("%s form %p\n", currentFunction, t -> reference);
         // printReference(t -> reference);
