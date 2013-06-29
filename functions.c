@@ -405,8 +405,6 @@ genParameter (AST_NODE * id, var_ref * ref) {
         parameter = ref -> parameter;
         ST_TYPE parameterType = PL -> PPAR -> type;
 
-        printf("type: %d\n", parameterType);
-
         // rolling
         for (m = 1; m < parameterNumber - n; m++) {
             parameter = (void *)parameter -> cons;
